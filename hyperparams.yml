@@ -1,0 +1,13 @@
+default_run:
+  model_name: roberta-base
+  # gpus: 2
+  # accelerator: ddp
+  # precision: 16
+  # sync_batchnorm: True
+  batch_size: 128
+  max_epochs: 60
+  lr: 0.00001
+  weight_decay: 0.01
+  seed: 48
+  limit_train_batches: 0.1
+  limit_val_batches: 0.1
