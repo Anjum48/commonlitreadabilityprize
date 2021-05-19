@@ -9,5 +9,3 @@ default_run:
   lr: 0.00001
   weight_decay: 0.01
   seed: 48
-  limit_train_batches: 0.1
-  limit_val_batches: 0.1

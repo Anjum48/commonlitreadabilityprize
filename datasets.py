@@ -26,7 +26,7 @@ def create_folds(data, n_splits, random_state=None):
     data.loc[:, "bins"] = pd.cut(data["target"], bins=num_bins, labels=False)
 
     # initiate the kfold class from model_selection module
-    kf = StratifiedKFold(n_splits=n_splits, random_state=random_state)
+    kf = StratifiedKFold(n_splits=n_splits, shuffle=True, random_state=random_state)
 
     # fill the new kfold column
     # note that, instead of targets, we use bins!
@@ -58,14 +58,20 @@ class CommonLitDataset(Dataset):
             max_length=self.max_len,
             padding="max_length",
             truncation=True,
-            return_tensors="pt",
             # add_special_tokens=True  # not sure what this does
         )
 
-        if "target" in self.df.columns:
-            inputs["target"] = torch.tensor(row["target"], dtype=torch.float32)
+        input_dict = {
+            "input_ids": torch.tensor(inputs["input_ids"], dtype=torch.long),
+            "attention_mask": torch.tensor(inputs["attention_mask"], dtype=torch.long),
+        }
 
-        return inputs
+        if "target" in self.df.columns:
+            target = torch.tensor([row["target"]], dtype=torch.float32)
+        else:
+            target = None
+
+        return input_dict, target
 
 
 class CommonLitDataModule(pl.LightningDataModule):

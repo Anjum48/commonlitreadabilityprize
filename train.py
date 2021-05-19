@@ -18,7 +18,7 @@ def run_fold(fold: int, args):
     monitor_list = [("loss/valid", "min", "loss")]
     loggers, callbacks = prepare_loggers_and_callbacks(
         args.timestamp,
-        args.encoder,
+        args.model_name,
         fold,
         monitors=monitor_list,
         tensorboard=args.logging,

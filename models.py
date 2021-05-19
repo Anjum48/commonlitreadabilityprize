@@ -7,6 +7,7 @@ from config import MODEL_CACHE
 from utils import add_weight_decay
 
 
+# https://www.kaggle.com/gogo827jz/roberta-model-parallel-fold-training-on-tpu
 class AttentionBlock(nn.Module):
     def __init__(self, in_features, middle_features, out_features):
         super().__init__()
@@ -39,21 +40,22 @@ class CommonLitModel(pl.LightningModule):
         self.transformer = AutoModelForSequenceClassification.from_pretrained(
             model_name, cache_dir=MODEL_CACHE
         )
-        self.in_features = self.transformer.classifier.in_features
+        self.in_features = self.transformer.classifier.dense.in_features
         self.transformer.classifier = nn.Identity()
         # self.att = AttentionBlock(self.in_features, self.in_features, 1)
         self.fc = nn.Linear(self.in_features, 1)
         self.loss_fn = nn.MSELoss()
 
-    def forward(self, *args, **kwargs):
-        x = self.model(*args, **kwargs)["logits"]
+    def forward(self, **kwargs):
+        x = self.transformer(**kwargs)["logits"]
         # x = self.att(x)
         x = self.fc(x)
         return x
 
     def training_step(self, batch, batch_nb):
-        logits = self(batch["input_ids"], batch["attention_mask"])
-        loss = self.loss_fn(logits, batch["target"])
+        inputs, target = batch
+        logits = self(**inputs)
+        loss = self.loss_fn(logits, target)
         return {"loss": loss}
 
     def training_epoch_end(self, training_step_outputs):
@@ -61,8 +63,9 @@ class CommonLitModel(pl.LightningModule):
         self.log("loss/train", avg_loss, sync_dist=True)
 
     def validation_step(self, batch, batch_idx):
-        logits = self(batch["input_ids"], batch["attention_mask"])
-        loss = self.loss_fn(logits, batch["target"])
+        inputs, target = batch
+        logits = self(**inputs)
+        loss = self.loss_fn(logits, target)
 
         return {
             "val_loss": loss,

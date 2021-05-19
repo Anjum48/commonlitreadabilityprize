@@ -28,14 +28,14 @@ def prepare_args(config_path=CONFIG_PATH, default_config="default_run"):
         default=default_config,
     )
 
-    parser.add_argument(
-        "--gpus",
-        action="store",
-        dest="gpus",
-        help="Number of GPUs",
-        default=2,
-        type=int,
-    )
+    # parser.add_argument(
+    #     "--gpus",
+    #     action="store",
+    #     dest="gpus",
+    #     help="Number of GPUs",
+    #     default=2,
+    #     type=int,
+    # )
 
     parser.add_argument(
         "--timestamp",
