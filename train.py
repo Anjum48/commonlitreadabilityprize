@@ -15,7 +15,7 @@ def run_fold(fold: int, args):
     pl.seed_everything(args.seed + fold)
     resume, run_id = resume_helper(args)
 
-    monitor_list = [("loss/valid", "min", "loss")]
+    monitor_list = [("loss/valid", "min", "loss"), ("rmse", "min", "rmse")]
     loggers, callbacks = prepare_loggers_and_callbacks(
         args.timestamp,
         args.model_name,
@@ -36,7 +36,7 @@ def run_fold(fold: int, args):
         args,
         logger=loggers,
         callbacks=callbacks,
-        plugins=DDPPlugin(find_unused_parameters=False),
+        # plugins=DDPPlugin(find_unused_parameters=False),
         resume_from_checkpoint=resume,
         # fast_dev_run=True,
         # auto_lr_find=True,

@@ -42,20 +42,20 @@ class CommonLitModel(pl.LightningModule):
         )
         self.in_features = self.transformer.classifier.dense.in_features
         self.transformer.classifier = nn.Identity()
-        # self.att = AttentionBlock(self.in_features, self.in_features, 1)
+        self.att = AttentionBlock(self.in_features, self.in_features, 1)
         self.fc = nn.Linear(self.in_features, 1)
         self.loss_fn = nn.MSELoss()
 
     def forward(self, **kwargs):
         x = self.transformer(**kwargs)["logits"]
-        # x = self.att(x)
+        x = self.att(x)
         x = self.fc(x)
         return x
 
     def training_step(self, batch, batch_nb):
         inputs, labels = batch
         logits = self(**inputs)
-        loss = self.loss_fn(logits, labels["target"])
+        loss = self.loss_fn(logits, labels["target_stoch"])
         return {"loss": loss}
 
     def training_epoch_end(self, training_step_outputs):
@@ -70,8 +70,7 @@ class CommonLitModel(pl.LightningModule):
         return {
             "val_loss": loss,
             "y_pred": logits,
-            "y_true": batch["target"],
-            "y_true_sec": batch["target_sec"],
+            "y_true": labels["target"],
         }
 
     def validation_epoch_end(self, outputs):
