@@ -1,3 +1,4 @@
+from logging import error
 import pytorch_lightning as pl
 import torch
 import numpy as np
@@ -67,11 +68,17 @@ class CommonLitDataset(Dataset):
         }
 
         if "target" in self.df.columns:
-            target = torch.tensor([row["target"]], dtype=torch.float32)
+            labels = {
+                "target": torch.tensor([row["target"]], dtype=torch.float32),
+                "error": torch.tensor([row["standard_error"]], dtype=torch.float32),
+            }
+            labels["target_stoch"] = torch.normal(
+                mean=labels["target"], std=labels["error"]
+            )
         else:
-            target = None
+            labels = None
 
-        return input_dict, target
+        return input_dict, labels
 
 
 class CommonLitDataModule(pl.LightningDataModule):

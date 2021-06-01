@@ -53,9 +53,9 @@ class CommonLitModel(pl.LightningModule):
         return x
 
     def training_step(self, batch, batch_nb):
-        inputs, target = batch
+        inputs, labels = batch
         logits = self(**inputs)
-        loss = self.loss_fn(logits, target)
+        loss = self.loss_fn(logits, labels["target"])
         return {"loss": loss}
 
     def training_epoch_end(self, training_step_outputs):
@@ -63,9 +63,9 @@ class CommonLitModel(pl.LightningModule):
         self.log("loss/train", avg_loss, sync_dist=True)
 
     def validation_step(self, batch, batch_idx):
-        inputs, target = batch
+        inputs, labels = batch
         logits = self(**inputs)
-        loss = self.loss_fn(logits, target)
+        loss = self.loss_fn(logits, labels["target"])
 
         return {
             "val_loss": loss,
