@@ -15,7 +15,7 @@ def run_fold(fold: int, args):
     pl.seed_everything(args.seed + fold)
     resume, run_id = resume_helper(args)
 
-    monitor_list = [("loss/valid", "min", "loss"), ("rmse", "min", "rmse")]
+    monitor_list = [("rmse", "min", None)]
     loggers, callbacks = prepare_loggers_and_callbacks(
         args.timestamp,
         args.model_name,
@@ -25,6 +25,7 @@ def run_fold(fold: int, args):
         wandb=args.logging,
         patience=None,
         run_id=run_id,
+        save_weights_only=True,
     )
 
     # swa = StochasticWeightAveraging(swa_epoch_start=0.5)

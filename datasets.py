@@ -53,9 +53,8 @@ class CommonLitDataset(Dataset):
 
     def __getitem__(self, index):
         row = self.df.loc[index]
-        text = str(row["excerpt"])
         inputs = self.tokenizer(
-            text,
+            str(row["excerpt"]),
             max_length=self.max_len,
             padding="max_length",
             truncation=True,
@@ -72,6 +71,11 @@ class CommonLitDataset(Dataset):
                 "target": torch.tensor([row["target"]], dtype=torch.float32),
                 "error": torch.tensor([row["standard_error"]], dtype=torch.float32),
             }
+
+            # For id 436ce79fe
+            if labels["error"] <= 0:
+                labels["error"] += 0.5
+
             labels["target_stoch"] = torch.normal(
                 mean=labels["target"], std=labels["error"]
             )

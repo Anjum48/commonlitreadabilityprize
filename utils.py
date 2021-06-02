@@ -56,6 +56,15 @@ def prepare_args(config_path=CONFIG_PATH, default_config="default_run"):
     )
 
     parser.add_argument(
+        "--seed",
+        action="store",
+        dest="seed",
+        help="Random seed",
+        default=48,
+        type=int,
+    )
+
+    parser.add_argument(
         "--logging",
         dest="logging",
         action="store_true",
@@ -126,6 +135,7 @@ def prepare_loggers_and_callbacks(
     wandb=False,
     neptune=False,
     run_id=None,
+    save_weights_only=False,
 ):
     """
     Utility function to prepare loggers and callbacks
@@ -154,16 +164,17 @@ def prepare_loggers_and_callbacks(
 
     for monitor, mode, suffix in monitors:
 
-        if suffix is not None or suffix != "":
-            filename = "{epoch:02d}-{f1:.4f}" + f"_{suffix}"
+        if suffix is not None and suffix != "":
+            filename = "{epoch:02d}-{rmse:.4f}" + f"_{suffix}"
         else:
-            filename = "{epoch:02d}-{f1:.4f}"
+            filename = "{epoch:02d}-{rmse:.4f}"
 
         checkpoint = ModelCheckpoint(
             dirpath=save_path / encoder_name / f"fold_{fold}",
             filename=filename,
             monitor=monitor,
             mode=mode,
+            save_weights_only=save_weights_only,
         )
         callbacks.append(checkpoint)
 

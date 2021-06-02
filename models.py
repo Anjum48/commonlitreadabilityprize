@@ -1,7 +1,7 @@
 import pytorch_lightning as pl
 import torch
 import torch.nn as nn
-from transformers import AutoModelForSequenceClassification
+from transformers import AutoModelForSequenceClassification, AutoConfig, AutoModel
 
 from config import MODEL_CACHE
 from utils import add_weight_decay
@@ -37,25 +37,69 @@ class CommonLitModel(pl.LightningModule):
         super().__init__()
         self.save_hyperparameters()
 
+        self.config = AutoConfig.from_pretrained(model_name)
+        # config.update({"num_labels": 2})
+
         self.transformer = AutoModelForSequenceClassification.from_pretrained(
-            model_name, cache_dir=MODEL_CACHE
+            model_name, cache_dir=MODEL_CACHE, num_labels=2
         )
-        self.in_features = self.transformer.classifier.dense.in_features
-        self.transformer.classifier = nn.Identity()
-        self.att = AttentionBlock(self.in_features, self.in_features, 1)
-        self.fc = nn.Linear(self.in_features, 1)
+
+        # self.transformer = AutoModel.from_pretrained(model_name, cache_dir=MODEL_CACHE)
+        # self.layer_norm = nn.LayerNorm(self.config.hidden_size)
+        # self.dropouts = nn.ModuleList([nn.Dropout(0.5) for _ in range(5)])
+        # # self.dropouts = nn.ModuleList([nn.Dropout(0.3)])
+        # self.regressor = nn.Linear(self.config.hidden_size, 2)
+        # self._init_weights(self.layer_norm)
+        # self._init_weights(self.regressor)
+
+        # self.transformer = AutoModelForSequenceClassification.from_pretrained(
+        #     model_name, cache_dir=MODEL_CACHE
+        # )
+        # self.in_features = self.transformer.classifier.dense.in_features
+        # self.transformer.classifier.out_proj = nn.Linear(self.in_features, 2)
+        # self.transformer.classifier = nn.Identity()
+        # self.att = AttentionBlock(self.in_features, self.in_features, 1)
+        # self.fc = nn.Linear(self.in_features, 2)
         self.loss_fn = nn.MSELoss()
 
+    def _init_weights(self, module):
+        if isinstance(module, nn.Linear):
+            module.weight.data.normal_(mean=0.0, std=self.config.initializer_range)
+            if module.bias is not None:
+                module.bias.data.zero_()
+        elif isinstance(module, nn.Embedding):
+            module.weight.data.normal_(mean=0.0, std=self.config.initializer_range)
+            if module.padding_idx is not None:
+                module.weight.data[module.padding_idx].zero_()
+        elif isinstance(module, nn.LayerNorm):
+            module.bias.data.zero_()
+            module.weight.data.fill_(1.0)
+
     def forward(self, **kwargs):
-        x = self.transformer(**kwargs)["logits"]
-        x = self.att(x)
-        x = self.fc(x)
-        return x
+        out = self.transformer(**kwargs)["logits"]
+
+        # x = self.transformer(**kwargs)[1]
+        # x = self.layer_norm(x)
+        # for i, dropout in enumerate(self.dropouts):
+        #     if i == 0:
+        #         out = self.regressor(dropout(x))
+        #     else:
+        #         out += self.regressor(dropout(x))
+        # out /= len(self.dropouts)
+
+        # x = self.att(x)
+        # x = self.fc(x)
+        mean = out[:, 0].view(-1, 1)
+        log_var = out[:, 1].view(-1, 1)
+        return mean, log_var
 
     def training_step(self, batch, batch_nb):
         inputs, labels = batch
-        logits = self(**inputs)
-        loss = self.loss_fn(logits, labels["target_stoch"])
+        mean, log_var = self.forward(**inputs)
+        # p = torch.distributions.Normal(mean, torch.exp(log_var))
+        # q = torch.distributions.Normal(labels["target"], labels["error"])
+        # loss = torch.distributions.kl_divergence(p, q).mean()
+        loss = self.loss_fn(mean, labels["target"])
         return {"loss": loss}
 
     def training_epoch_end(self, training_step_outputs):
@@ -64,12 +108,15 @@ class CommonLitModel(pl.LightningModule):
 
     def validation_step(self, batch, batch_idx):
         inputs, labels = batch
-        logits = self(**inputs)
-        loss = self.loss_fn(logits, labels["target"])
+        mean, log_var = self.forward(**inputs)
+        # p = torch.distributions.Normal(mean, torch.exp(log_var))
+        # q = torch.distributions.Normal(labels["target"], labels["error"])
+        # loss = torch.distributions.kl_divergence(p, q).mean()
+        loss = self.loss_fn(mean, labels["target"])
 
         return {
             "val_loss": loss,
-            "y_pred": logits,
+            "y_pred": mean,
             "y_true": labels["target"],
         }
 
@@ -78,10 +125,12 @@ class CommonLitModel(pl.LightningModule):
         y_pred = torch.cat([x["y_pred"] for x in outputs])
         y_true = torch.cat([x["y_true"] for x in outputs])
 
+        rmse = torch.sqrt(self.loss_fn(y_pred, y_true))
+
         self.log_dict(
             {
                 "loss/valid": loss_val,
-                "rmse": torch.sqrt(loss_val),
+                "rmse": rmse,
             },
             prog_bar=True,
             sync_dist=True,
