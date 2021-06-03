@@ -31,6 +31,7 @@ import random
 
 import datasets
 import torch
+
 from datasets import load_dataset
 from torch.utils.data.dataloader import DataLoader
 from tqdm.auto import tqdm
@@ -49,6 +50,8 @@ from transformers import (
     get_scheduler,
     set_seed,
 )
+
+from config import INPUT_PATH, MODEL_CACHE, OUTPUT_PATH
 
 
 logger = logging.getLogger(__name__)
@@ -251,8 +254,39 @@ def parse_args():
     return args
 
 
+# https://www.kaggle.com/rhtsingh/commonlit-readability-prize-roberta-torch-itpt
+class TrainConfig:
+    train_file = str(INPUT_PATH / "mlm_data.csv")
+    validation_file = str(INPUT_PATH / "mlm_data.csv")
+    dataset_name = None
+    validation_split_percentage = 5
+    pad_to_max_length = True
+    model_name_or_path = "roberta-base"
+    config_name = "roberta-base"
+    tokenizer_name = "roberta-base"
+    use_slow_tokenizer = True
+    per_device_train_batch_size = 8
+    per_device_eval_batch_size = 8
+    learning_rate = 5e-5
+    weight_decay = 0.0
+    num_train_epochs = 2  # 2 for roberta-large
+    max_train_steps = None
+    gradient_accumulation_steps = 1
+    lr_scheduler_type = "constant_with_warmup"
+    num_warmup_steps = 0
+    output_dir = str(OUTPUT_PATH / "pretraining" / "roberta-base")
+    seed = 2021
+    model_type = "roberta"
+    max_seq_length = None
+    line_by_line = False
+    preprocessing_num_workers = 4
+    overwrite_cache = True
+    mlm_probability = 0.15
+
+
 def main():
-    args = parse_args()
+    # args = parse_args()
+    args = TrainConfig()
 
     # Initialize the accelerator. We will let the accelerator handle device placement for us in this example.
     accelerator = Accelerator()
@@ -321,20 +355,26 @@ def main():
     # In distributed training, the .from_pretrained methods guarantee that only one local process can concurrently
     # download model & vocab.
     if args.config_name:
-        config = AutoConfig.from_pretrained(args.config_name)
+        config = AutoConfig.from_pretrained(args.config_name, cache_dir=MODEL_CACHE)
     elif args.model_name_or_path:
-        config = AutoConfig.from_pretrained(args.model_name_or_path)
+        config = AutoConfig.from_pretrained(
+            args.model_name_or_path, cache_dir=MODEL_CACHE
+        )
     else:
         config = CONFIG_MAPPING[args.model_type]()
         logger.warning("You are instantiating a new config instance from scratch.")
 
     if args.tokenizer_name:
         tokenizer = AutoTokenizer.from_pretrained(
-            args.tokenizer_name, use_fast=not args.use_slow_tokenizer
+            args.tokenizer_name,
+            use_fast=not args.use_slow_tokenizer,
+            cache_dir=MODEL_CACHE,
         )
     elif args.model_name_or_path:
         tokenizer = AutoTokenizer.from_pretrained(
-            args.model_name_or_path, use_fast=not args.use_slow_tokenizer
+            args.model_name_or_path,
+            use_fast=not args.use_slow_tokenizer,
+            cache_dir=MODEL_CACHE,
         )
     else:
         raise ValueError(
@@ -347,6 +387,7 @@ def main():
             args.model_name_or_path,
             from_tf=bool(".ckpt" in args.model_name_or_path),
             config=config,
+            cache_dir=MODEL_CACHE,
         )
     else:
         logger.info("Training new model from scratch")
