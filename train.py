@@ -4,7 +4,7 @@ from pytorch_lightning.callbacks import StochasticWeightAveraging
 from pytorch_lightning.plugins import DDPPlugin
 
 from config import MODEL_CACHE
-from datasets import CommonLitDataModule
+from data import CommonLitDataModule
 from models import CommonLitModel
 from utils import prepare_args, prepare_loggers_and_callbacks, resume_helper
 

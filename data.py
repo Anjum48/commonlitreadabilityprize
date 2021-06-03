@@ -127,7 +127,7 @@ class CommonLitDataModule(pl.LightningDataModule):
     def val_dataloader(self):
         return DataLoader(
             self.clr_valid,
-            batch_size=self.batch_size,
+            batch_size=128,
             num_workers=self.num_workers,
             pin_memory=True,
         )
