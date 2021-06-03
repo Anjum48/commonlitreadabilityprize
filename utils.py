@@ -7,6 +7,7 @@ import numpy as np
 import torch
 import torch.nn as nn
 import yaml
+from coolname import generate_slug
 from pytorch_lightning.callbacks import (
     EarlyStopping,
     LearningRateMonitor,
@@ -62,6 +63,15 @@ def prepare_args(config_path=CONFIG_PATH, default_config="default_run"):
         help="Random seed",
         default=48,
         type=int,
+    )
+
+    parser.add_argument(
+        "--slug",
+        action="store",
+        dest="slug",
+        help="Human rememebrable run group",
+        default=generate_slug(3),
+        type=str,
     )
 
     parser.add_argument(
