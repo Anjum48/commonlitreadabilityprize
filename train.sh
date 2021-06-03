@@ -10,3 +10,4 @@ do
     done
     # python upload_data.py --timestamp $timestamp
 done
+python agg_scores.py

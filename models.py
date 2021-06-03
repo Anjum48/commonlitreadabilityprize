@@ -96,10 +96,10 @@ class CommonLitModel(pl.LightningModule):
     def training_step(self, batch, batch_nb):
         inputs, labels = batch
         mean, log_var = self.forward(**inputs)
-        # p = torch.distributions.Normal(mean, torch.exp(log_var))
-        # q = torch.distributions.Normal(labels["target"], labels["error"])
-        # loss = torch.distributions.kl_divergence(p, q).mean()
-        loss = self.loss_fn(mean, labels["target"])
+        p = torch.distributions.Normal(mean, torch.exp(log_var))
+        q = torch.distributions.Normal(labels["target"], labels["error"])
+        loss = torch.distributions.kl_divergence(p, q).mean()
+        # loss = self.loss_fn(mean, labels["target"])
         return {"loss": loss}
 
     def training_epoch_end(self, training_step_outputs):
@@ -109,10 +109,10 @@ class CommonLitModel(pl.LightningModule):
     def validation_step(self, batch, batch_idx):
         inputs, labels = batch
         mean, log_var = self.forward(**inputs)
-        # p = torch.distributions.Normal(mean, torch.exp(log_var))
-        # q = torch.distributions.Normal(labels["target"], labels["error"])
-        # loss = torch.distributions.kl_divergence(p, q).mean()
-        loss = self.loss_fn(mean, labels["target"])
+        p = torch.distributions.Normal(mean, torch.exp(log_var))
+        q = torch.distributions.Normal(labels["target"], labels["error"])
+        loss = torch.distributions.kl_divergence(p, q).mean()
+        # loss = self.loss_fn(mean, labels["target"])
 
         return {
             "val_loss": loss,
