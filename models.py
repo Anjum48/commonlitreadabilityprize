@@ -1,9 +1,14 @@
 import pytorch_lightning as pl
 import torch
 import torch.nn as nn
-from transformers import AutoModelForSequenceClassification, AutoConfig, AutoModel
+from transformers import (
+    AutoModelForSequenceClassification,
+    AutoConfig,
+    AutoModel,
+    AdamW,
+)
 
-from config import MODEL_CACHE
+from config import MODEL_CACHE, OUTPUT_PATH
 from utils import add_weight_decay
 
 
@@ -32,25 +37,34 @@ class CommonLitModel(pl.LightningModule):
         model_name: str = "roberta-base",
         lr: float = 0.001,
         weight_decay: float = 0,
+        pretrained: bool = False,
+        betas: tuple = (0.9, 0.999),
+        eps: float = 1e-6,
         **kwargs,
     ):
         super().__init__()
         self.save_hyperparameters()
 
+        if pretrained:
+            model_path = OUTPUT_PATH / "pretraining" / model_name
+            self.transformer = AutoModelForSequenceClassification.from_pretrained(
+                model_path, num_labels=1
+            )
+        else:
+            self.transformer = AutoModelForSequenceClassification.from_pretrained(
+                model_name, cache_dir=MODEL_CACHE, num_labels=1
+            )
+
+        # https://www.kaggle.com/rhtsingh/two-roberta-s-are-better-than-one-0-469
         self.config = AutoConfig.from_pretrained(model_name)
-        # config.update({"num_labels": 2})
-
-        self.transformer = AutoModelForSequenceClassification.from_pretrained(
-            model_name, cache_dir=MODEL_CACHE, num_labels=2
-        )
-
-        # self.transformer = AutoModel.from_pretrained(model_name, cache_dir=MODEL_CACHE)
-        # self.layer_norm = nn.LayerNorm(self.config.hidden_size)
+        self.transformer = AutoModel.from_pretrained(model_name, cache_dir=MODEL_CACHE)
+        self.layer_norm = nn.LayerNorm(self.config.hidden_size)
+        # Multi sample DO
         # self.dropouts = nn.ModuleList([nn.Dropout(0.5) for _ in range(5)])
-        # # self.dropouts = nn.ModuleList([nn.Dropout(0.3)])
-        # self.regressor = nn.Linear(self.config.hidden_size, 2)
-        # self._init_weights(self.layer_norm)
-        # self._init_weights(self.regressor)
+        self.dropouts = nn.ModuleList([nn.Dropout(0.3)])
+        self.regressor = nn.Linear(self.config.hidden_size, 2)
+        self._init_weights(self.layer_norm)
+        self._init_weights(self.regressor)
 
         # self.transformer = AutoModelForSequenceClassification.from_pretrained(
         #     model_name, cache_dir=MODEL_CACHE
@@ -76,30 +90,34 @@ class CommonLitModel(pl.LightningModule):
             module.weight.data.fill_(1.0)
 
     def forward(self, **kwargs):
-        out = self.transformer(**kwargs)["logits"]
+        # out = self.transformer(**kwargs)["logits"]
 
-        # x = self.transformer(**kwargs)[1]
-        # x = self.layer_norm(x)
-        # for i, dropout in enumerate(self.dropouts):
-        #     if i == 0:
-        #         out = self.regressor(dropout(x))
-        #     else:
-        #         out += self.regressor(dropout(x))
-        # out /= len(self.dropouts)
+        x = self.transformer(**kwargs)[1]  # pooler_output
+        x = self.layer_norm(x)
+        for i, dropout in enumerate(self.dropouts):
+            if i == 0:
+                out = self.regressor(dropout(x))
+            else:
+                out += self.regressor(dropout(x))
+        out /= len(self.dropouts)
 
         # x = self.att(x)
         # x = self.fc(x)
-        mean = out[:, 0].view(-1, 1)
-        log_var = out[:, 1].view(-1, 1)
-        return mean, log_var
+        if out.shape[1] == 1:
+            return out, None
+        else:
+            mean = out[:, 0].view(-1, 1)
+            log_var = out[:, 1].view(-1, 1)
+            return mean, log_var
 
     def training_step(self, batch, batch_nb):
         inputs, labels = batch
         mean, log_var = self.forward(**inputs)
-        p = torch.distributions.Normal(mean, torch.exp(log_var))
-        q = torch.distributions.Normal(labels["target"], labels["error"])
-        loss = torch.distributions.kl_divergence(p, q).mean()
-        # loss = self.loss_fn(mean, labels["target"])
+        # p = torch.distributions.Normal(mean, torch.exp(log_var))
+        # q = torch.distributions.Normal(labels["target"], labels["error"])
+        # loss = torch.distributions.kl_divergence(p, q).mean()
+        loss = self.loss_fn(mean, labels["target"])
+        self.log_dict({"loss/train_step": loss})
         return {"loss": loss}
 
     def training_epoch_end(self, training_step_outputs):
@@ -109,10 +127,10 @@ class CommonLitModel(pl.LightningModule):
     def validation_step(self, batch, batch_idx):
         inputs, labels = batch
         mean, log_var = self.forward(**inputs)
-        p = torch.distributions.Normal(mean, torch.exp(log_var))
-        q = torch.distributions.Normal(labels["target"], labels["error"])
-        loss = torch.distributions.kl_divergence(p, q).mean()
-        # loss = self.loss_fn(mean, labels["target"])
+        # p = torch.distributions.Normal(mean, torch.exp(log_var))
+        # q = torch.distributions.Normal(labels["target"], labels["error"])
+        # loss = torch.distributions.kl_divergence(p, q).mean()
+        loss = self.loss_fn(mean, labels["target"])
 
         return {
             "val_loss": loss,
@@ -143,9 +161,24 @@ class CommonLitModel(pl.LightningModule):
             skip_list=["bias", "LayerNorm.bias", "LayerNorm.weight"],
         )
 
-        opt = torch.optim.AdamW(
+        # parameters = [
+        #     {
+        #         "params": self.transformer.roberta.parameters(),
+        #         "weight_decay": 0,  # self.hparams.weight_decay,
+        #         "lr": self.hparams.lr,
+        #     },
+        #     {
+        #         "params": self.transformer.classifier.parameters(),
+        #         "weight_decay": self.hparams.weight_decay,
+        #         "lr": 0.001,
+        #     },
+        # ]
+
+        opt = AdamW(
             parameters,
             lr=self.hparams.lr,
+            betas=self.hparams.betas,
+            eps=self.hparams.eps,
         )
 
         sch = torch.optim.lr_scheduler.CosineAnnealingLR(
