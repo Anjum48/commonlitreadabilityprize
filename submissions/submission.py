@@ -63,18 +63,23 @@ class CommonLitModel(pl.LightningModule):
         pretrained: bool = False,
         betas: tuple = (0.9, 0.999),
         eps: float = 1e-6,
+        config=None,
         **kwargs,
     ):
         super().__init__()
         self.save_hyperparameters()
 
-        self.config = AutoConfig.from_pretrained(model_name)
-        self.transformer = AutoModel.from_pretrained(
-            model_name,
-            cache_dir=MODEL_CACHE,
-            output_hidden_states=True,
-            local_files_only=True,
-        )
+        if config is None:
+            self.config = AutoConfig.from_pretrained(model_name)
+            self.transformer = AutoModel.from_pretrained(
+                model_name,
+                cache_dir=MODEL_CACHE,
+                output_hidden_states=True,
+                local_files_only=True,
+            )
+        else:
+            self.config = config
+            self.transformer = AutoModel.from_config(config)
 
         self.seq_attn_head = nn.Sequential(
             nn.LayerNorm(self.config.hidden_size),
@@ -254,9 +259,17 @@ def make_predictions(dataset_paths):
     for p in dataset_paths:
         mpaths.extend(list(p.glob(f"*/*.ckpt")))
     mpaths.sort()
-    models = [CommonLitModel.load_from_checkpoint(p) for p in mpaths]
     tokenizers = [AutoTokenizer.from_pretrained(str(p.parent)) for p in mpaths]
-    print(f"{len(mpaths)} models found. {len(tokenizers)} tokenizers found")
+    configs = [AutoConfig.from_pretrained(str(p.parent)) for p in mpaths]
+    models = [
+        CommonLitModel.load_from_checkpoint(p, config=c)
+        for p, c in zip(mpaths, configs)
+    ]
+    print(
+        f"{len(mpaths)} models found.",
+        f"{len(tokenizers)} tokenizers found.",
+        f"{len(configs)} configs found",
+    )
 
     df = pd.read_csv(INPUT_PATH / "test.csv")
 
@@ -267,15 +280,15 @@ def make_predictions(dataset_paths):
     output /= len(models)
 
     df["target"] = output.squeeze().numpy()
-    df[["id", "target"]].to_csv("submission.csv")
+    df[["id", "target"]].to_csv("submission.csv", index=False)
 
 
 if __name__ == "__main__":
 
     dataset_paths = [
         OUTPUT_PATH / "20210605-150515" / "roberta-base-squad2",
-        OUTPUT_PATH / "20210605-153747" / "roberta-base-squad2",
-        OUTPUT_PATH / "20210605-160907" / "roberta-base-squad2",
+        # OUTPUT_PATH / "20210605-153747" / "roberta-base-squad2",
+        # OUTPUT_PATH / "20210605-160907" / "roberta-base-squad2",
     ]
 
     predictions = make_predictions(dataset_paths)
