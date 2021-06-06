@@ -3,7 +3,7 @@ import torch
 from pytorch_lightning.callbacks import StochasticWeightAveraging
 from pytorch_lightning.plugins import DDPPlugin
 
-from config import MODEL_CACHE
+from config import MODEL_CACHE, OUTPUT_PATH
 from data import CommonLitDataModule
 from models import CommonLitModel
 from utils import prepare_args, prepare_loggers_and_callbacks, resume_helper
@@ -45,6 +45,11 @@ def run_fold(fold: int, args):
 
     dm = CommonLitDataModule().from_argparse_args(args)
     dm.setup("fit", fold)
+
+    # Save tokenizer
+    save_path = OUTPUT_PATH / args.timestamp / args.model_name / f"fold_{fold}"
+    dm.tokenizer.save_pretrained(save_path)
+    model.config.to_json_file(str(save_path / "config.json"))
 
     # trainer.tune(model, datamodule=dm)  # Use with auto_lr_find
     trainer.fit(model, datamodule=dm)
