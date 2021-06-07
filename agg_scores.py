@@ -3,7 +3,7 @@ import pandas as pd
 import gspread
 import yaml
 from gspread_dataframe import set_with_dataframe
-from config import OUTPUT_PATH
+from src.config import OUTPUT_PATH
 
 
 def aggregate_scores(n_folders=0):
