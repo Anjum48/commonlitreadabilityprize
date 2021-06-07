@@ -7,7 +7,7 @@ from torch.utils.data import DataLoader, Dataset
 from transformers import AutoTokenizer
 from sklearn.model_selection import StratifiedKFold
 
-from config import MODEL_CACHE, INPUT_PATH
+from src.config import MODEL_CACHE, INPUT_PATH
 
 
 # https://www.kaggle.com/abhishek/step-1-create-folds
@@ -80,7 +80,7 @@ class CommonLitDataset(Dataset):
                 mean=labels["target"], std=labels["error"]
             )
         else:
-            labels = None
+            labels = 0
 
         return input_dict, labels
 

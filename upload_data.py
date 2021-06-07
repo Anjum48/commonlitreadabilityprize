@@ -4,7 +4,7 @@ import subprocess
 from argparse import ArgumentParser
 from pathlib import Path
 
-from config import COMP_NAME, OUTPUT_PATH
+from src.config import COMP_NAME, OUTPUT_PATH
 
 
 # Remove "=" signs from filenames

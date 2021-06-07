@@ -3,10 +3,10 @@ import torch
 from pytorch_lightning.callbacks import StochasticWeightAveraging
 from pytorch_lightning.plugins import DDPPlugin
 
-from config import MODEL_CACHE, OUTPUT_PATH
-from data import CommonLitDataModule
-from models import CommonLitModel
-from utils import prepare_args, prepare_loggers_and_callbacks, resume_helper
+from src.config import MODEL_CACHE, OUTPUT_PATH
+from src.datasets import CommonLitDataModule
+from src.models import CommonLitModel
+from src.utils import prepare_args, prepare_loggers_and_callbacks, resume_helper
 
 torch.hub.set_dir(MODEL_CACHE)
 

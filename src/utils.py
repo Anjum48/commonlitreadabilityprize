@@ -15,7 +15,7 @@ from pytorch_lightning.callbacks import (
 )
 from pytorch_lightning.loggers import NeptuneLogger, TensorBoardLogger, WandbLogger
 
-from config import COMP_NAME, CONFIG_PATH, OUTPUT_PATH
+from src.config import COMP_NAME, CONFIG_PATH, OUTPUT_PATH
 
 
 def prepare_args(config_path=CONFIG_PATH, default_config="default_run"):

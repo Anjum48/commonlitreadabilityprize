@@ -1,15 +1,10 @@
 import pytorch_lightning as pl
 import torch
 import torch.nn as nn
-from transformers import (
-    AutoModelForSequenceClassification,
-    AutoConfig,
-    AutoModel,
-    AdamW,
-)
+from transformers import AutoConfig, AutoModel, AdamW
 
-from config import MODEL_CACHE
-from utils import add_weight_decay
+from src.config import MODEL_CACHE
+from src.utils import add_weight_decay
 
 
 # https://www.kaggle.com/gogo827jz/roberta-model-parallel-fold-training-on-tpu
@@ -40,6 +35,8 @@ class CommonLitModel(pl.LightningModule):
         pretrained: bool = False,
         betas: tuple = (0.9, 0.999),
         eps: float = 1e-6,
+        kl_loss: bool = False,
+        hf_config=None,
         **kwargs,
     ):
         super().__init__()
@@ -55,11 +52,18 @@ class CommonLitModel(pl.LightningModule):
         #         model_name, cache_dir=MODEL_CACHE, num_labels=1
         #     )
 
-        # https://www.kaggle.com/rhtsingh/two-roberta-s-are-better-than-one-0-469
-        self.config = AutoConfig.from_pretrained(model_name)
-        self.transformer = AutoModel.from_pretrained(
-            model_name, cache_dir=MODEL_CACHE, output_hidden_states=True
-        )
+        if hf_config is None:
+            self.config = AutoConfig.from_pretrained(model_name)
+            self.transformer = AutoModel.from_pretrained(
+                model_name,
+                cache_dir=MODEL_CACHE,
+                output_hidden_states=True,
+                local_files_only=True,
+            )
+        else:
+            self.config = hf_config
+            self.transformer = AutoModel.from_config(hf_config)
+
         # self.layer_norm = nn.LayerNorm(self.config.hidden_size)
         # Multi sample Dropout
         # self.dropouts = nn.ModuleList([nn.Dropout(0.5) for _ in range(5)])
@@ -73,7 +77,7 @@ class CommonLitModel(pl.LightningModule):
             # nn.Dropout(0.1),
             AttentionBlock(self.config.hidden_size, self.config.hidden_size, 1),
             # nn.Dropout(0.1),
-            nn.Linear(self.config.hidden_size, 1),
+            nn.Linear(self.config.hidden_size, 2 if kl_loss else 1),
         )
 
         # self.seq_conv_attn_head = nn.Sequential(
@@ -157,10 +161,12 @@ class CommonLitModel(pl.LightningModule):
     def training_step(self, batch, batch_nb):
         inputs, labels = batch
         mean, log_var = self.forward(**inputs)
-        # p = torch.distributions.Normal(mean, torch.exp(log_var))
-        # q = torch.distributions.Normal(labels["target"], labels["error"])
-        # loss = torch.distributions.kl_divergence(p, q).mean()
-        loss = self.loss_fn(mean, labels["target"])
+        if self.hparams.kl_loss:
+            p = torch.distributions.Normal(mean, torch.exp(log_var))
+            q = torch.distributions.Normal(labels["target"], labels["error"])
+            loss = torch.distributions.kl_divergence(p, q).mean()
+        else:
+            loss = self.loss_fn(mean, labels["target"])
         self.log_dict({"loss/train_step": loss})
         return {"loss": loss}
 
@@ -171,10 +177,12 @@ class CommonLitModel(pl.LightningModule):
     def validation_step(self, batch, batch_idx):
         inputs, labels = batch
         mean, log_var = self.forward(**inputs)
-        # p = torch.distributions.Normal(mean, torch.exp(log_var))
-        # q = torch.distributions.Normal(labels["target"], labels["error"])
-        # loss = torch.distributions.kl_divergence(p, q).mean()
-        loss = self.loss_fn(mean, labels["target"])
+        if self.hparams.kl_loss:
+            p = torch.distributions.Normal(mean, torch.exp(log_var))
+            q = torch.distributions.Normal(labels["target"], labels["error"])
+            loss = torch.distributions.kl_divergence(p, q).mean()
+        else:
+            loss = self.loss_fn(mean, labels["target"])
 
         return {
             "val_loss": loss,
