@@ -26,9 +26,13 @@ def create_meta(upload_path, dataset_name):
         json.dump(meta, f, ensure_ascii=False, indent=4)
 
 
-def upload(checkpoint, dataset_prefix=COMP_NAME):
+def upload(checkpoint, dataset_suffix="", dataset_prefix=COMP_NAME):
     upload_path = OUTPUT_PATH / checkpoint
     dataset_name = f"{dataset_prefix}-{checkpoint}"
+
+    if len(dataset_suffix) > 0:
+        dataset_name = dataset_name + f"-{dataset_suffix}"
+
     clean_file_names(upload_path)
 
     # If new dataset, creata metadata, init and upload
@@ -76,6 +80,15 @@ if __name__ == "__main__":
         type=str,
     )
 
+    parser.add_argument(
+        "--suffix",
+        action="store",
+        dest="suffix",
+        help="Suffix for versioning",
+        default="",
+        type=str,
+    )
+
     args = parser.parse_args()
 
-    upload(args.timestamp)
+    upload(args.timestamp, args.suffix)
