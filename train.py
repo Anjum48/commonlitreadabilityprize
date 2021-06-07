@@ -25,7 +25,7 @@ def run_fold(fold: int, args):
         wandb=args.logging,
         patience=None,
         run_id=run_id,
-        save_weights_only=True,
+        save_weights_only=False,
     )
 
     # swa = StochasticWeightAveraging(swa_epoch_start=0.5)
@@ -47,7 +47,11 @@ def run_fold(fold: int, args):
     dm.setup("fit", fold)
 
     # Save tokenizer
-    save_path = OUTPUT_PATH / args.timestamp / args.model_name / f"fold_{fold}"
+    folder = args.model_name
+    if "/" in folder:
+        folder = folder.replace("/", "_")
+
+    save_path = OUTPUT_PATH / args.timestamp / folder / f"fold_{fold}"
     dm.tokenizer.save_pretrained(save_path)
     model.config.to_json_file(str(save_path / "config.json"))
 
