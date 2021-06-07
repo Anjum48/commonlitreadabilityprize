@@ -15,16 +15,19 @@ def aggregate_scores(n_folders=0):
         scores = []
         for ckpt in sorted(f.glob("*/*/*.ckpt")):
 
-            # Get the slug & seed
-            if len(scores) == 0:
-                with open(ckpt.parent / "hparams.yaml", "r") as ymlfile:
-                    cfg = yaml.load(ymlfile, Loader=yaml.FullLoader)
-                    scores.append(cfg["slug"])
-                    scores.append(f.name)
-                    scores.append(cfg["seed"])
+            try:
+                # Get the slug & seed
+                if len(scores) == 0:
+                    with open(ckpt.parent / "hparams.yaml", "r") as ymlfile:
+                        cfg = yaml.load(ymlfile, Loader=yaml.FullLoader)
+                        scores.append(cfg["slug"])
+                        scores.append(f.name)
+                        scores.append(cfg["seed"])
 
-            # epoch=02-rmse=0.5375 - match the last number. = sign optional
-            scores.append(float(re.findall(r"rmse=?(0\.\d+)", ckpt.stem)[0]))
+                # epoch=02-rmse=0.5375 - match the last number. = sign optional
+                scores.append(float(re.findall(r"rmse=?(\d\.\d+)", ckpt.stem)[0]))
+            except IndexError:
+                print("Skipping", ckpt)
         agg_scores.append(scores)
 
     return agg_scores
