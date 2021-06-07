@@ -271,11 +271,13 @@ def make_predictions(dataset_paths):
         f"{len(configs)} configs found",
     )
 
-    df = pd.read_csv(INPUT_PATH / "train.csv")
+    # df = pd.read_csv(INPUT_PATH / "train.csv")
+    df = pd.read_csv(INPUT_PATH / "test.csv")
+    output = 0
 
     for model, tokenizer in zip(models, tokenizers):
         dataset = CommonLitDataset(df, tokenizer)
-        output = infer(model, dataset)
+        output += infer(model, dataset)
 
     output /= len(models)
 
@@ -286,7 +288,7 @@ def make_predictions(dataset_paths):
 if __name__ == "__main__":
 
     dataset_paths = [
-        OUTPUT_PATH / "20210606-225034" / "deepset" / "roberta-base-squad2",
+        OUTPUT_PATH / "20210607-124940" / "deepset_roberta-base-squad2",
         # OUTPUT_PATH / "20210605-153747" / "roberta-base-squad2",
         # OUTPUT_PATH / "20210605-160907" / "roberta-base-squad2",
     ]

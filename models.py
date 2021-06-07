@@ -8,7 +8,7 @@ from transformers import (
     AdamW,
 )
 
-from config import MODEL_CACHE, OUTPUT_PATH
+from config import MODEL_CACHE
 from utils import add_weight_decay
 
 
@@ -45,26 +45,47 @@ class CommonLitModel(pl.LightningModule):
         super().__init__()
         self.save_hyperparameters()
 
-        if pretrained:
-            model_path = OUTPUT_PATH / "pretraining" / model_name
-            self.transformer = AutoModelForSequenceClassification.from_pretrained(
-                model_path, num_labels=1
-            )
-        else:
-            self.transformer = AutoModelForSequenceClassification.from_pretrained(
-                model_name, cache_dir=MODEL_CACHE, num_labels=1
-            )
+        # if pretrained:
+        #     model_path = OUTPUT_PATH / "pretraining" / model_name
+        #     self.transformer = AutoModelForSequenceClassification.from_pretrained(
+        #         model_path, num_labels=1
+        #     )
+        # else:
+        #     self.transformer = AutoModelForSequenceClassification.from_pretrained(
+        #         model_name, cache_dir=MODEL_CACHE, num_labels=1
+        #     )
 
         # https://www.kaggle.com/rhtsingh/two-roberta-s-are-better-than-one-0-469
         self.config = AutoConfig.from_pretrained(model_name)
-        self.transformer = AutoModel.from_pretrained(model_name, cache_dir=MODEL_CACHE)
-        self.layer_norm = nn.LayerNorm(self.config.hidden_size)
-        # Multi sample DO
+        self.transformer = AutoModel.from_pretrained(
+            model_name, cache_dir=MODEL_CACHE, output_hidden_states=True
+        )
+        # self.layer_norm = nn.LayerNorm(self.config.hidden_size)
+        # Multi sample Dropout
         # self.dropouts = nn.ModuleList([nn.Dropout(0.5) for _ in range(5)])
-        self.dropouts = nn.ModuleList([nn.Dropout(0.3)])
-        self.regressor = nn.Linear(self.config.hidden_size, 2)
-        self._init_weights(self.layer_norm)
-        self._init_weights(self.regressor)
+        # self.dropouts = nn.ModuleList([nn.Dropout(0.3)])
+        # self.regressor = nn.Linear(self.config.hidden_size, 2)
+        # self._init_weights(self.layer_norm)
+        # self._init_weights(self.regressor)
+
+        self.seq_attn_head = nn.Sequential(
+            nn.LayerNorm(self.config.hidden_size),
+            # nn.Dropout(0.1),
+            AttentionBlock(self.config.hidden_size, self.config.hidden_size, 1),
+            # nn.Dropout(0.1),
+            nn.Linear(self.config.hidden_size, 1),
+        )
+
+        # self.seq_conv_attn_head = nn.Sequential(
+        #     nn.LayerNorm(self.config.hidden_size),
+        #     nn.Dropout(0.1),
+        #     nn.Conv1d(256, 128, kernel_size=5, padding=2),
+        #     nn.BatchNorm1d(128),
+        #     nn.Dropout(0.1),
+        #     AttentionBlock(self.config.hidden_size, self.config.hidden_size, 1),
+        #     nn.Dropout(0.1),
+        #     nn.Linear(self.config.hidden_size, 1),
+        # )
 
         # self.transformer = AutoModelForSequenceClassification.from_pretrained(
         #     model_name, cache_dir=MODEL_CACHE
@@ -74,6 +95,10 @@ class CommonLitModel(pl.LightningModule):
         # self.transformer.classifier = nn.Identity()
         # self.att = AttentionBlock(self.in_features, self.in_features, 1)
         # self.fc = nn.Linear(self.in_features, 2)
+
+        # self.head = nn.Linear(self.config.hidden_size * 4, 1)
+        # self.do = nn.Dropout(0.5)
+
         self.loss_fn = nn.MSELoss()
 
     def _init_weights(self, module):
@@ -92,17 +117,36 @@ class CommonLitModel(pl.LightningModule):
     def forward(self, **kwargs):
         # out = self.transformer(**kwargs)["logits"]
 
-        x = self.transformer(**kwargs)[1]  # pooler_output
-        x = self.layer_norm(x)
-        for i, dropout in enumerate(self.dropouts):
-            if i == 0:
-                out = self.regressor(dropout(x))
-            else:
-                out += self.regressor(dropout(x))
-        out /= len(self.dropouts)
+        x = self.transformer(**kwargs)[0]  # 0=seq_output, 1=pooler_output
+        # x = self.layer_norm(x)
+        # for i, dropout in enumerate(self.dropouts):
+        #     if i == 0:
+        #         out = self.regressor(dropout(x))
+        #     else:
+        #         out += self.regressor(dropout(x))
+        # out /= len(self.dropouts)
 
-        # x = self.att(x)
-        # x = self.fc(x)
+        out = self.seq_attn_head(x)
+        # out = self.seq_conv_attn_head(x)
+
+        # out_mean = torch.mean(x, dim=1)
+        # out_max, _ = torch.max(x, dim=1)
+        # out = torch.cat((out_mean, out_max), dim=-1)
+        # out = torch.mean(
+        #     torch.stack([self.head(self.do(out)) for _ in range(5)], dim=0), dim=0
+        # )
+
+        # out = torch.stack(
+        #     tuple(x[-i - 1] for i in range(self.config.num_hidden_layers)), dim=0
+        # )
+        # out_mean = torch.mean(out, dim=0)
+        # out_max, _ = torch.max(out, dim=0)
+        # out = torch.cat((out_mean, out_max), dim=-1)
+        # out_mean = torch.mean(out, dim=1)
+        # out_max, _ = torch.max(out, dim=1)
+        # out = torch.cat((out_mean, out_max), dim=-1)
+        # out = self.head(out)
+
         if out.shape[1] == 1:
             return out, None
         else:
