@@ -63,13 +63,13 @@ class CommonLitModel(pl.LightningModule):
         pretrained: bool = False,
         betas: tuple = (0.9, 0.999),
         eps: float = 1e-6,
-        config=None,
+        hf_config=None,
         **kwargs,
     ):
         super().__init__()
         self.save_hyperparameters()
 
-        if config is None:
+        if hf_config is None:
             self.config = AutoConfig.from_pretrained(model_name)
             self.transformer = AutoModel.from_pretrained(
                 model_name,
@@ -78,8 +78,8 @@ class CommonLitModel(pl.LightningModule):
                 local_files_only=True,
             )
         else:
-            self.config = config
-            self.transformer = AutoModel.from_config(config)
+            self.config = hf_config
+            self.transformer = AutoModel.from_config(hf_config)
 
         self.seq_attn_head = nn.Sequential(
             nn.LayerNorm(self.config.hidden_size),
@@ -262,7 +262,7 @@ def make_predictions(dataset_paths):
     tokenizers = [AutoTokenizer.from_pretrained(str(p.parent)) for p in mpaths]
     configs = [AutoConfig.from_pretrained(str(p.parent)) for p in mpaths]
     models = [
-        CommonLitModel.load_from_checkpoint(p, config=c)
+        CommonLitModel.load_from_checkpoint(p, hf_config=c)
         for p, c in zip(mpaths, configs)
     ]
     print(
@@ -271,7 +271,7 @@ def make_predictions(dataset_paths):
         f"{len(configs)} configs found",
     )
 
-    df = pd.read_csv(INPUT_PATH / "test.csv")
+    df = pd.read_csv(INPUT_PATH / "train.csv")
 
     for model, tokenizer in zip(models, tokenizers):
         dataset = CommonLitDataset(df, tokenizer)
@@ -286,7 +286,7 @@ def make_predictions(dataset_paths):
 if __name__ == "__main__":
 
     dataset_paths = [
-        OUTPUT_PATH / "20210605-150515" / "roberta-base-squad2",
+        OUTPUT_PATH / "20210606-225034" / "deepset" / "roberta-base-squad2",
         # OUTPUT_PATH / "20210605-153747" / "roberta-base-squad2",
         # OUTPUT_PATH / "20210605-160907" / "roberta-base-squad2",
     ]
