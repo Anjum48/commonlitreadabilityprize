@@ -169,6 +169,9 @@ def prepare_loggers_and_callbacks(
 
     callbacks = [LearningRateMonitor(logging_interval="epoch")]
 
+    if "/" in encoder_name:
+        encoder_name = encoder_name.replace("/", "_")
+
     if patience:
         callbacks.append(EarlyStopping("loss/valid", patience=patience))
 
