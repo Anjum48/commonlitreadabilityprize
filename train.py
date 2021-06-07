@@ -25,7 +25,7 @@ def run_fold(fold: int, args):
         wandb=args.logging,
         patience=None,
         run_id=run_id,
-        save_weights_only=False,
+        save_weights_only=True,
     )
 
     # swa = StochasticWeightAveraging(swa_epoch_start=0.5)
