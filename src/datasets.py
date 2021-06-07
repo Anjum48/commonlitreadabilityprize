@@ -16,7 +16,7 @@ def create_folds(data, n_splits, random_state=None):
     data["fold"] = -1
 
     # the next step is to randomize the rows of the data
-    data = data.sample(frac=1).reset_index(drop=True)
+    data = data.sample(frac=1, random_state=random_state).reset_index(drop=True)
 
     # calculate number of bins by Sturge's rule
     # I take the floor of the value, you can also
