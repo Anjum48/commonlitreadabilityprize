@@ -51,7 +51,7 @@ from transformers import (
     set_seed,
 )
 
-from config import INPUT_PATH, MODEL_CACHE, OUTPUT_PATH
+from src.config import INPUT_PATH, MODEL_CACHE, OUTPUT_PATH
 
 
 logger = logging.getLogger(__name__)
