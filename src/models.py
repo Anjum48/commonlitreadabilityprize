@@ -3,7 +3,7 @@ import torch
 import torch.nn as nn
 from transformers import AutoConfig, AutoModel, AdamW
 
-from src.config import MODEL_CACHE
+from src.config import MODEL_CACHE, OUTPUT_PATH
 from src.utils import add_weight_decay
 
 
@@ -42,24 +42,20 @@ class CommonLitModel(pl.LightningModule):
         super().__init__()
         self.save_hyperparameters()
 
-        # if pretrained:
-        #     model_path = OUTPUT_PATH / "pretraining" / model_name
-        #     self.transformer = AutoModelForSequenceClassification.from_pretrained(
-        #         model_path, num_labels=1
-        #     )
-        # else:
-        #     self.transformer = AutoModelForSequenceClassification.from_pretrained(
-        #         model_name, cache_dir=MODEL_CACHE, num_labels=1
-        #     )
-
         if hf_config is None:
-            self.config = AutoConfig.from_pretrained(model_name)
-            self.transformer = AutoModel.from_pretrained(
-                model_name,
-                cache_dir=MODEL_CACHE,
-                output_hidden_states=True,
-                local_files_only=True,
-            )
+            if pretrained:
+                model_path = OUTPUT_PATH / "pretraining" / model_name
+                print("Using pretrained from", model_path)
+                self.config = AutoConfig.from_pretrained(model_name)
+                self.transformer = AutoModel.from_pretrained(model_path)
+            else:
+                self.config = AutoConfig.from_pretrained(model_name)
+                self.transformer = AutoModel.from_pretrained(
+                    model_name,
+                    cache_dir=MODEL_CACHE,
+                    output_hidden_states=True,
+                    local_files_only=True,
+                )
         else:
             self.config = hf_config
             self.transformer = AutoModel.from_config(hf_config)
