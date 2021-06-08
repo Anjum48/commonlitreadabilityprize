@@ -1,8 +1,10 @@
 from logging import error
+from numpy.core.fromnumeric import std
 import pytorch_lightning as pl
 import torch
 import numpy as np
 import pandas as pd
+import textstat
 from torch.utils.data import DataLoader, Dataset
 from transformers import AutoTokenizer
 from sklearn.model_selection import StratifiedKFold
@@ -82,7 +84,22 @@ class CommonLitDataset(Dataset):
         else:
             labels = 0
 
-        return input_dict, labels
+        # Add addtional features
+        features = self.generate_features(str(row["excerpt"]))
+
+        return input_dict, labels, features
+
+    def generate_features(self, text):
+        means = torch.tensor([8.564220, 172.948483, 67.742121])
+        stds = torch.tensor([3.666797, 16.974894, 17.530230])
+        features = torch.tensor(
+            [
+                textstat.sentence_count(text),
+                textstat.lexicon_count(text),
+                textstat.flesch_reading_ease(text),
+            ]
+        )
+        return (features - means) / stds
 
 
 class CommonLitDataModule(pl.LightningDataModule):
@@ -98,7 +115,7 @@ class CommonLitDataModule(pl.LightningDataModule):
         super().__init__()
         self.tokenizer = AutoTokenizer.from_pretrained(
             model_name,
-            cache_dir=MODEL_CACHE,
+            cache_dir=MODEL_CACHE / model_name,
         )
         self.batch_size = batch_size
         self.max_len = max_len

@@ -4,7 +4,7 @@ import torch.nn as nn
 from transformers import AutoConfig, AutoModel, AdamW
 
 from src.config import MODEL_CACHE, OUTPUT_PATH
-from src.utils import add_weight_decay
+from src.utils import add_weight_decay, get_optimizer_params
 
 
 # https://www.kaggle.com/gogo827jz/roberta-model-parallel-fold-training-on-tpu
@@ -49,16 +49,21 @@ class CommonLitModel(pl.LightningModule):
                 self.config = AutoConfig.from_pretrained(model_name)
                 self.transformer = AutoModel.from_pretrained(model_path)
             else:
-                self.config = AutoConfig.from_pretrained(model_name)
+                self.config = AutoConfig.from_pretrained(
+                    model_name,
+                    cache_dir=MODEL_CACHE / model_name,
+                )
                 self.transformer = AutoModel.from_pretrained(
                     model_name,
-                    cache_dir=MODEL_CACHE,
+                    cache_dir=MODEL_CACHE / model_name,
                     output_hidden_states=True,
-                    local_files_only=True,
                 )
         else:
             self.config = hf_config
             self.transformer = AutoModel.from_config(hf_config)
+
+        # for param in self.transformer.parameters():
+        #     param.requires_grad = False
 
         # self.layer_norm = nn.LayerNorm(self.config.hidden_size)
         # Multi sample Dropout
@@ -73,8 +78,10 @@ class CommonLitModel(pl.LightningModule):
             # nn.Dropout(0.1),
             AttentionBlock(self.config.hidden_size, self.config.hidden_size, 1),
             # nn.Dropout(0.1),
-            nn.Linear(self.config.hidden_size, 2 if kl_loss else 1),
+            # nn.Linear(self.config.hidden_size, 2 if kl_loss else 1),
         )
+
+        self.regressor = nn.Linear(self.config.hidden_size + 3, 2 if kl_loss else 1)
 
         # self.seq_conv_attn_head = nn.Sequential(
         #     nn.LayerNorm(self.config.hidden_size),
@@ -114,7 +121,7 @@ class CommonLitModel(pl.LightningModule):
             module.bias.data.zero_()
             module.weight.data.fill_(1.0)
 
-    def forward(self, **kwargs):
+    def forward(self, features, **kwargs):
         # out = self.transformer(**kwargs)["logits"]
 
         x = self.transformer(**kwargs)[0]  # 0=seq_output, 1=pooler_output
@@ -127,6 +134,8 @@ class CommonLitModel(pl.LightningModule):
         # out /= len(self.dropouts)
 
         out = self.seq_attn_head(x)
+        out = torch.cat([out, features], -1)
+        out = self.regressor(out)
         # out = self.seq_conv_attn_head(x)
 
         # out_mean = torch.mean(x, dim=1)
@@ -155,8 +164,8 @@ class CommonLitModel(pl.LightningModule):
             return mean, log_var
 
     def training_step(self, batch, batch_nb):
-        inputs, labels = batch
-        mean, log_var = self.forward(**inputs)
+        inputs, labels, features = batch
+        mean, log_var = self.forward(features, **inputs)
         if self.hparams.kl_loss:
             p = torch.distributions.Normal(mean, torch.exp(log_var))
             q = torch.distributions.Normal(labels["target"], labels["error"])
@@ -170,9 +179,12 @@ class CommonLitModel(pl.LightningModule):
         avg_loss = torch.stack([x["loss"] for x in training_step_outputs]).mean()
         self.log("loss/train", avg_loss, sync_dist=True)
 
+        # for param in self.transformer.parameters():
+        #     param.requires_grad = True
+
     def validation_step(self, batch, batch_idx):
-        inputs, labels = batch
-        mean, log_var = self.forward(**inputs)
+        inputs, labels, features = batch
+        mean, log_var = self.forward(features, **inputs)
         if self.hparams.kl_loss:
             p = torch.distributions.Normal(mean, torch.exp(log_var))
             q = torch.distributions.Normal(labels["target"], labels["error"])
@@ -209,16 +221,20 @@ class CommonLitModel(pl.LightningModule):
             skip_list=["bias", "LayerNorm.bias", "LayerNorm.weight"],
         )
 
+        # parameters = get_optimizer_params(self, "a")
+
         # parameters = [
         #     {
-        #         "params": self.transformer.roberta.parameters(),
-        #         "weight_decay": 0,  # self.hparams.weight_decay,
+        #         "params": self.transformer.parameters(),
+        #         "weight_decay": 0,
         #         "lr": self.hparams.lr,
         #     },
         #     {
-        #         "params": self.transformer.classifier.parameters(),
+        #         "params": [
+        #             p for n, p in self.named_parameters() if "transformer" not in n
+        #         ],
         #         "weight_decay": self.hparams.weight_decay,
-        #         "lr": 0.001,
+        #         "lr": 1e-3,
         #     },
         # ]
 

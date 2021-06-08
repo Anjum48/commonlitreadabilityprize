@@ -6,7 +6,34 @@ default_run:
   lr: 0.00005
   weight_decay: 1.0
   val_check_interval: 5
-  # gradient_clip_val: 0.5
+  # pretrained: True
+  eps: 0.000001
+  betas: !!python/tuple [0.9, 0.999]
+  kl_loss: False
+
+
+bigbird:
+  model_name: google/bigbird-roberta-base
+  gpus: 1
+  batch_size: 16
+  max_epochs: 4
+  lr: 0.00005
+  weight_decay: 1.0
+  val_check_interval: 5
+  # pretrained: True
+  eps: 0.000001
+  betas: !!python/tuple [0.9, 0.999]
+  kl_loss: False
+
+
+albert:
+  model_name: albert-base-v2
+  gpus: 1
+  batch_size: 16
+  max_epochs: 4
+  lr: 0.00005
+  weight_decay: 1.0
+  val_check_interval: 5
   # pretrained: True
   eps: 0.000001
   betas: !!python/tuple [0.9, 0.999]
@@ -21,7 +48,6 @@ large_run:
   lr: 0.00005
   weight_decay: 1.0
   val_check_interval: 5
-  # gradient_clip_val: 0.5
   # pretrained: True
   eps: 0.000001
   betas: !!python/tuple [0.9, 0.999]

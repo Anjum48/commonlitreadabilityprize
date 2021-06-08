@@ -20,9 +20,9 @@ def infer(model, dataset, batch_size=128, device="cuda"):
 
     predictions = []
     with torch.no_grad():
-        for input_dict, _ in loader:
+        for input_dict, _, features in loader:
             input_dict = {k: v.to(device) for k, v in input_dict.items()}
-            mean, log_var = model(**input_dict)
+            mean, log_var = model(features.to(device), **input_dict)
             predictions.append(mean.cpu())
 
     return torch.cat(predictions, 0)
