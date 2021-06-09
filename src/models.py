@@ -36,6 +36,7 @@ class CommonLitModel(pl.LightningModule):
         betas: tuple = (0.9, 0.999),
         eps: float = 1e-6,
         kl_loss: bool = False,
+        warmup: int = 100,
         hf_config=None,
         **kwargs,
     ):
@@ -213,6 +214,29 @@ class CommonLitModel(pl.LightningModule):
             prog_bar=True,
             sync_dist=True,
         )
+
+    # learning rate warm-up
+    def optimizer_step(
+        self,
+        epoch,
+        batch_idx,
+        optimizer,
+        optimizer_idx,
+        optimizer_closure,
+        on_tpu=False,
+        using_native_amp=False,
+        using_lbfgs=False,
+    ):
+        # Warm-up the first 100 steps
+        if self.trainer.global_step < self.hparams.warmup:
+            lr_scale = min(
+                1.0, float(self.trainer.global_step + 1) / self.hparams.warmup
+            )
+            for pg in optimizer.param_groups:
+                pg["lr"] = lr_scale * self.hparams.lr
+
+        # update params
+        optimizer.step(closure=optimizer_closure)
 
     def configure_optimizers(self):
         parameters = add_weight_decay(
