@@ -28,7 +28,7 @@ def infer(model, dataset, batch_size=128, device="cuda"):
     return torch.cat(predictions, 0)
 
 
-def make_oofs(folder_name, seed):
+def make_oofs(folder_name, seed, device="cuda"):
     mpaths = sorted(list((OUTPUT_PATH / folder_name).glob(f"*/*/*.ckpt")))
     tokenizers = [AutoTokenizer.from_pretrained(str(p.parent)) for p in mpaths]
     configs = [AutoConfig.from_pretrained(str(p.parent)) for p in mpaths]
@@ -44,12 +44,15 @@ def make_oofs(folder_name, seed):
 
     df = pd.read_csv(INPUT_PATH / "train.csv")
     df = create_folds(df, 5, seed)
+    print(df.head())
     df["prediction"] = 0
 
     for fold, (model, tokenizer) in enumerate(zip(models, tokenizers)):
         df_fold = df.query(f"fold == {fold}")
         dataset = CommonLitDataset(df_fold, tokenizer)
-        df.loc[df_fold.index, "prediction"] = infer(model, dataset).squeeze().numpy()
+        df.loc[df_fold.index, "prediction"] = (
+            infer(model, dataset, device=device).squeeze().numpy()
+        )
 
     rmse = np.sqrt(mean_squared_error(df["prediction"], df["target"]))
     print(f"OOF RMSE {rmse:0.5f}")
@@ -58,7 +61,7 @@ def make_oofs(folder_name, seed):
 
 if __name__ == "__main__":
 
-    default_checkpoint = "20210607-124940"
+    default_checkpoint = "20210607-205257"
 
     parser = ArgumentParser()
 
@@ -82,4 +85,4 @@ if __name__ == "__main__":
 
     args = parser.parse_args()
     # os.environ["CUDA_VISIBLE_DEVICES"] = str(args.gpu)
-    predictions = make_oofs(args.timestamp, args.seed)
+    predictions = make_oofs(args.timestamp, args.seed, device="cuda:1")

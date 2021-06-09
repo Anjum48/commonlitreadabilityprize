@@ -5,6 +5,7 @@ import pandas as pd
 import pytorch_lightning as pl
 import torch
 import torch.nn as nn
+from sklearn.linear_model import LinearRegression
 from torch.utils.data import DataLoader, Dataset
 from transformers import (
     AutoConfig,
@@ -63,13 +64,13 @@ class CommonLitModel(pl.LightningModule):
         pretrained: bool = False,
         betas: tuple = (0.9, 0.999),
         eps: float = 1e-6,
-        hf_config=None,
+        config=None,
         **kwargs,
     ):
         super().__init__()
         self.save_hyperparameters()
 
-        if hf_config is None:
+        if config is None:
             self.config = AutoConfig.from_pretrained(model_name)
             self.transformer = AutoModel.from_pretrained(
                 model_name,
@@ -78,8 +79,8 @@ class CommonLitModel(pl.LightningModule):
                 local_files_only=True,
             )
         else:
-            self.config = hf_config
-            self.transformer = AutoModel.from_config(hf_config)
+            self.config = config
+            self.transformer = AutoModel.from_config(config)
 
         self.seq_attn_head = nn.Sequential(
             nn.LayerNorm(self.config.hidden_size),
@@ -254,43 +255,67 @@ def infer(model, dataset, batch_size=128, device="cuda"):
     return torch.cat(predictions, 0)
 
 
-def make_predictions(dataset_paths):
-    mpaths = []
+def make_predictions(dataset_paths, device="cuda"):
+    mpaths, oof_paths = [], []
     for p in dataset_paths:
-        mpaths.extend(list(p.glob(f"*/*.ckpt")))
-    mpaths.sort()
-    tokenizers = [AutoTokenizer.from_pretrained(str(p.parent)) for p in mpaths]
-    configs = [AutoConfig.from_pretrained(str(p.parent)) for p in mpaths]
-    models = [
-        CommonLitModel.load_from_checkpoint(p, hf_config=c)
-        for p, c in zip(mpaths, configs)
-    ]
+        mpaths.append(sorted(list(p.glob(f"*/*/*.ckpt"))))
+        oof_paths.extend(sorted(list(p.glob(f"*.csv"))))
+
     print(
-        f"{len(mpaths)} models found.",
-        f"{len(tokenizers)} tokenizers found.",
-        f"{len(configs)} configs found",
+        f"{len([item for sublist in mpaths for item in sublist])} models found.",
+        f"{len(oof_paths)} OOFs found",
     )
 
-    # df = pd.read_csv(INPUT_PATH / "train.csv")
+    # Construct OOF df
+    oofs = pd.read_csv(INPUT_PATH / "train.csv", usecols=["id", "target"]).sort_values(
+        by="id"
+    )
+    for i, p in enumerate(oof_paths):
+        x = pd.read_csv(p).sort_values(by="id")
+        oofs[f"model_{i}"] = x["prediction"].values
+
     df = pd.read_csv(INPUT_PATH / "test.csv")
     output = 0
 
-    for model, tokenizer in zip(models, tokenizers):
-        dataset = CommonLitDataset(df, tokenizer)
-        output += infer(model, dataset)
+    for i, group in enumerate(mpaths):
+        tokenizers = [AutoTokenizer.from_pretrained(str(p.parent)) for p in group]
+        configs = [AutoConfig.from_pretrained(str(p.parent)) for p in group]
+        models = [
+            CommonLitModel.load_from_checkpoint(p, config=c)
+            for p, c in zip(group, configs)
+        ]
 
-    output /= len(models)
+        output = 0
+        for model, tokenizer in zip(models, tokenizers):
+            dataset = CommonLitDataset(df, tokenizer)
+            output += infer(model, dataset, device=device)
 
-    df["target"] = output.squeeze().numpy()
+        df[f"model_{i}"] = output.squeeze().numpy() / len(group)
+
+    pred_cols = [f"model_{i}" for i in range(len(mpaths))]
+
+    # Use mean
+    # df["target"] = df[pred_cols].mean(1)
+
+    # Stack using linear regression
+    print(oofs[pred_cols].corr())
+    reg = LinearRegression()
+    reg.fit(oofs[pred_cols], oofs["target"])
+    print(f"Weights: {reg.coef_}, bias: {reg.intercept_}")
+    df["target"] = reg.predict(df[pred_cols])
+
     df[["id", "target"]].to_csv("submission.csv", index=False)
 
 
 if __name__ == "__main__":
 
     dataset_paths = [
-        OUTPUT_PATH / "20210607-124940" / "deepset_roberta-base-squad2",
-        # OUTPUT_PATH / "20210605-153747" / "roberta-base-squad2",
-        # OUTPUT_PATH / "20210605-160907" / "roberta-base-squad2",
+        OUTPUT_PATH / "20210607-205257",
+        OUTPUT_PATH / "20210607-222744",
+        OUTPUT_PATH / "20210607-234728",
+        # Path("../input/commonlitreadabilityprize-20210607-205257"),
+        # Path("../input/commonlitreadabilityprize-20210607-222744"),
+        # Path("../input/commonlitreadabilityprize-20210607-234728"),
     ]
 
-    predictions = make_predictions(dataset_paths)
+    predictions = make_predictions(dataset_paths, device="cuda:1")
