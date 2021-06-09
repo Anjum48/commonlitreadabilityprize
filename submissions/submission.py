@@ -367,19 +367,32 @@ def make_predictions(dataset_paths, device="cuda"):
 
 if __name__ == "__main__":
 
-    dataset_paths = [
-        # OUTPUT_PATH / "20210608-183327",
-        # OUTPUT_PATH / "20210608-190544",
-        # OUTPUT_PATH / "20210608-193801",
-        # OUTPUT_PATH / "20210608-233655",
-        # OUTPUT_PATH / "20210609-004922",
-        # OUTPUT_PATH / "20210609-020213",
-        Path("../input/commonlitreadabilityprize-20210608-183327"),
-        Path("../input/commonlitreadabilityprize-20210608-190544"),
-        Path("../input/commonlitreadabilityprize-20210608-193801"),
-        Path("../input/commonlitreadabilityprize-20210608-233655"),
-        Path("../input/commonlitreadabilityprize-20210609-004922"),
-        Path("../input/commonlitreadabilityprize-20210609-020213"),
+    model_folders = [
+        # proud-flashy-yak
+        # "20210608-183327",
+        # "20210608-190544",
+        # "20210608-193801",
+        # complex-heron-of-science
+        "20210609-171109",
+        "20210609-174639",
+        "20210609-182121",
+        "20210609-192843",
+        "20210609-200242",
+        # impetuous-marvellous-cockle
+        "20210608-233655",
+        "20210609-004922",
+        "20210609-020213",
+        # zippy-caped-leech
+        "20210609-125306",
+        "20210609-141352",
+        "20210609-154233",
     ]
 
-    predictions = make_predictions(dataset_paths, device="cuda")
+    if KERNEL:
+        dataset_paths = [
+            Path(f"../input/commonlitreadabilityprize-{f}") for f in model_folders
+        ]
+    else:
+        dataset_paths = [OUTPUT_PATH / f for f in model_folders]
+
+    predictions = make_predictions(dataset_paths, device="cuda:1")
