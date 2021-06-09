@@ -25,15 +25,17 @@ else:
     MODEL_CACHE = None
 
     # Install packages
-    # import subprocess
+    import subprocess
 
-    # whls = [
-    #     "../input/timm-pytorch-image-models/pytorch-image-models-master",
-    #     "../input/torchlibrosa/torchlibrosa-0.0.9-py2.py3-none-any.whl",
-    # ]
+    whls = [
+        "../input/textstat/Pyphen-0.10.0-py3-none-any.whl",
+        "../input/textstat/textstat-0.7.0-py3-none-any.whl",
+    ]
 
-    # for w in whls:
-    #     subprocess.call(["pip", "install", w, "--no-deps"])
+    for w in whls:
+        subprocess.call(["pip", "install", w, "--no-deps"])
+
+import textstat
 
 
 # models.py
@@ -64,32 +66,43 @@ class CommonLitModel(pl.LightningModule):
         pretrained: bool = False,
         betas: tuple = (0.9, 0.999),
         eps: float = 1e-6,
-        config=None,
+        kl_loss: bool = False,
+        warmup: int = 100,
+        hf_config=None,
         **kwargs,
     ):
         super().__init__()
         self.save_hyperparameters()
 
-        if config is None:
-            self.config = AutoConfig.from_pretrained(model_name)
-            self.transformer = AutoModel.from_pretrained(
-                model_name,
-                cache_dir=MODEL_CACHE,
-                output_hidden_states=True,
-                local_files_only=True,
-            )
+        if hf_config is None:
+            if pretrained:
+                model_path = OUTPUT_PATH / "pretraining" / model_name
+                print("Using pretrained from", model_path)
+                self.config = AutoConfig.from_pretrained(model_name)
+                self.transformer = AutoModel.from_pretrained(model_path)
+            else:
+                self.config = AutoConfig.from_pretrained(
+                    model_name,
+                    cache_dir=MODEL_CACHE / model_name,
+                )
+                self.transformer = AutoModel.from_pretrained(
+                    model_name,
+                    cache_dir=MODEL_CACHE / model_name,
+                    output_hidden_states=True,
+                )
         else:
-            self.config = config
-            self.transformer = AutoModel.from_config(config)
+            self.config = hf_config
+            self.transformer = AutoModel.from_config(hf_config)
 
         self.seq_attn_head = nn.Sequential(
             nn.LayerNorm(self.config.hidden_size),
             # nn.Dropout(0.1),
             AttentionBlock(self.config.hidden_size, self.config.hidden_size, 1),
             # nn.Dropout(0.1),
-            nn.Linear(self.config.hidden_size, 1),
+            # nn.Linear(self.config.hidden_size, 2 if kl_loss else 1),
         )
 
+        self.regressor = nn.Linear(self.config.hidden_size + 3, 2 if kl_loss else 1)
         self.loss_fn = nn.MSELoss()
 
     def _init_weights(self, module):
@@ -105,9 +118,12 @@ class CommonLitModel(pl.LightningModule):
             module.bias.data.zero_()
             module.weight.data.fill_(1.0)
 
-    def forward(self, **kwargs):
+    def forward(self, features, **kwargs):
         x = self.transformer(**kwargs)[0]  # 0=seq_output, 1=pooler_output
+
         out = self.seq_attn_head(x)
+        out = torch.cat([out, features], -1)
+        out = self.regressor(out)
 
         if out.shape[1] == 1:
             return out, None
@@ -117,12 +133,14 @@ class CommonLitModel(pl.LightningModule):
             return mean, log_var
 
     def training_step(self, batch, batch_nb):
-        inputs, labels = batch
-        mean, log_var = self.forward(**inputs)
-        # p = torch.distributions.Normal(mean, torch.exp(log_var))
-        # q = torch.distributions.Normal(labels["target"], labels["error"])
-        # loss = torch.distributions.kl_divergence(p, q).mean()
-        loss = self.loss_fn(mean, labels["target"])
+        inputs, labels, features = batch
+        mean, log_var = self.forward(features, **inputs)
+        if self.hparams.kl_loss:
+            p = torch.distributions.Normal(mean, torch.exp(log_var))
+            q = torch.distributions.Normal(labels["target"], labels["error"])
+            loss = torch.distributions.kl_divergence(p, q).mean()
+        else:
+            loss = self.loss_fn(mean, labels["target"])
         self.log_dict({"loss/train_step": loss})
         return {"loss": loss}
 
@@ -131,12 +149,14 @@ class CommonLitModel(pl.LightningModule):
         self.log("loss/train", avg_loss, sync_dist=True)
 
     def validation_step(self, batch, batch_idx):
-        inputs, labels = batch
-        mean, log_var = self.forward(**inputs)
-        # p = torch.distributions.Normal(mean, torch.exp(log_var))
-        # q = torch.distributions.Normal(labels["target"], labels["error"])
-        # loss = torch.distributions.kl_divergence(p, q).mean()
-        loss = self.loss_fn(mean, labels["target"])
+        inputs, labels, features = batch
+        mean, log_var = self.forward(features, **inputs)
+        if self.hparams.kl_loss:
+            p = torch.distributions.Normal(mean, torch.exp(log_var))
+            q = torch.distributions.Normal(labels["target"], labels["error"])
+            loss = torch.distributions.kl_divergence(p, q).mean()
+        else:
+            loss = self.loss_fn(mean, labels["target"])
 
         return {
             "val_loss": loss,
@@ -152,10 +172,36 @@ class CommonLitModel(pl.LightningModule):
         rmse = torch.sqrt(self.loss_fn(y_pred, y_true))
 
         self.log_dict(
-            {"loss/valid": loss_val, "rmse": rmse},
+            {
+                "loss/valid": loss_val,
+                "rmse": rmse,
+            },
             prog_bar=True,
             sync_dist=True,
         )
+
+    # learning rate warm-up
+    def optimizer_step(
+        self,
+        epoch,
+        batch_idx,
+        optimizer,
+        optimizer_idx,
+        optimizer_closure,
+        on_tpu=False,
+        using_native_amp=False,
+        using_lbfgs=False,
+    ):
+        # Warm-up the first 100 steps
+        if self.trainer.global_step < self.hparams.warmup:
+            lr_scale = min(
+                1.0, float(self.trainer.global_step + 1) / self.hparams.warmup
+            )
+            for pg in optimizer.param_groups:
+                pg["lr"] = lr_scale * self.hparams.lr
+
+        # update params
+        optimizer.step(closure=optimizer_closure)
 
     def configure_optimizers(self):
         parameters = add_weight_decay(
@@ -236,20 +282,35 @@ class CommonLitDataset(Dataset):
         else:
             labels = 0
 
-        return input_dict, labels
+        # Add addtional features
+        features = self.generate_features(str(row["excerpt"]))
+
+        return input_dict, labels, features
+
+    def generate_features(self, text):
+        means = torch.tensor([8.564220, 172.948483, 67.742121])
+        stds = torch.tensor([3.666797, 16.974894, 17.530230])
+        features = torch.tensor(
+            [
+                textstat.sentence_count(text),
+                textstat.lexicon_count(text),
+                textstat.flesch_reading_ease(text),
+            ]
+        )
+        return (features - means) / stds
 
 
 # infer.py
-def infer(model, dataset, batch_size=128, device="cuda"):
+def infer(model, dataset, batch_size=64, device="cuda"):
     model.to(device)
     model.eval()
-    loader = DataLoader(dataset, batch_size=batch_size, num_workers=4)
+    loader = DataLoader(dataset, batch_size=batch_size, num_workers=1)
 
     predictions = []
     with torch.no_grad():
-        for input_dict, _ in loader:
+        for input_dict, _, features in loader:
             input_dict = {k: v.to(device) for k, v in input_dict.items()}
-            mean, log_var = model(**input_dict)
+            mean, log_var = model(features.to(device), **input_dict)
             predictions.append(mean.cpu())
 
     return torch.cat(predictions, 0)
@@ -278,15 +339,12 @@ def make_predictions(dataset_paths, device="cuda"):
     output = 0
 
     for i, group in enumerate(mpaths):
-        tokenizers = [AutoTokenizer.from_pretrained(str(p.parent)) for p in group]
-        configs = [AutoConfig.from_pretrained(str(p.parent)) for p in group]
-        models = [
-            CommonLitModel.load_from_checkpoint(p, config=c)
-            for p, c in zip(group, configs)
-        ]
-
         output = 0
-        for model, tokenizer in zip(models, tokenizers):
+        for p in group:
+            print(p)
+            config = AutoConfig.from_pretrained(str(p.parent))
+            tokenizer = AutoTokenizer.from_pretrained(str(p.parent))
+            model = CommonLitModel.load_from_checkpoint(p, hf_config=config)
             dataset = CommonLitDataset(df, tokenizer)
             output += infer(model, dataset, device=device)
 
@@ -310,12 +368,18 @@ def make_predictions(dataset_paths, device="cuda"):
 if __name__ == "__main__":
 
     dataset_paths = [
-        OUTPUT_PATH / "20210607-205257",
-        OUTPUT_PATH / "20210607-222744",
-        OUTPUT_PATH / "20210607-234728",
-        # Path("../input/commonlitreadabilityprize-20210607-205257"),
-        # Path("../input/commonlitreadabilityprize-20210607-222744"),
-        # Path("../input/commonlitreadabilityprize-20210607-234728"),
+        # OUTPUT_PATH / "20210608-183327",
+        # OUTPUT_PATH / "20210608-190544",
+        # OUTPUT_PATH / "20210608-193801",
+        # OUTPUT_PATH / "20210608-233655",
+        # OUTPUT_PATH / "20210609-004922",
+        # OUTPUT_PATH / "20210609-020213",
+        Path("../input/commonlitreadabilityprize-20210608-183327"),
+        Path("../input/commonlitreadabilityprize-20210608-190544"),
+        Path("../input/commonlitreadabilityprize-20210608-193801"),
+        Path("../input/commonlitreadabilityprize-20210608-233655"),
+        Path("../input/commonlitreadabilityprize-20210609-004922"),
+        Path("../input/commonlitreadabilityprize-20210609-020213"),
     ]
 
-    predictions = make_predictions(dataset_paths, device="cuda:1")
+    predictions = make_predictions(dataset_paths, device="cuda")
