@@ -13,7 +13,7 @@ default_run:
 
 
 bigbird:
-  model_name: google/bigbird-roberta-base
+  model_name: google/bigbird-roberta-large
   gpus: 1
   batch_size: 16
   max_epochs: 4
@@ -27,7 +27,7 @@ bigbird:
 
 
 albert:
-  model_name: albert-base-v2
+  model_name: albert-large-v2
   gpus: 1
   batch_size: 16
   max_epochs: 4
@@ -42,6 +42,34 @@ albert:
 
 large_run:
   model_name: deepset/roberta-large-squad2
+  gpus: 1
+  batch_size: 16
+  max_epochs: 4
+  lr: 0.00005
+  weight_decay: 1.0
+  val_check_interval: 5
+  # pretrained: True
+  eps: 0.000001
+  betas: !!python/tuple [0.9, 0.999]
+  kl_loss: False
+
+
+distilroberta:
+  model_name: distilroberta-base
+  gpus: 1
+  batch_size: 16
+  max_epochs: 4
+  lr: 0.00005
+  weight_decay: 1.0
+  val_check_interval: 5
+  # pretrained: True
+  eps: 0.000001
+  betas: !!python/tuple [0.9, 0.999]
+  kl_loss: False
+
+
+funnel:
+  model_name: funnel-transformer/large-base
   gpus: 1
   batch_size: 16
   max_epochs: 4
