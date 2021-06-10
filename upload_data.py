@@ -33,6 +33,9 @@ def upload(checkpoint, dataset_suffix="", dataset_prefix=COMP_NAME):
     if len(dataset_suffix) > 0:
         dataset_name = dataset_name + f"-{dataset_suffix}"
 
+    print("Uploading", upload_path)
+    print("Dataset name", dataset_name)
+
     clean_file_names(upload_path)
 
     # If new dataset, creata metadata, init and upload
