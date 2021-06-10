@@ -1,4 +1,5 @@
 import getpass
+from os import path
 from pathlib import Path
 
 import pandas as pd
@@ -320,7 +321,7 @@ def infer(model, dataset, batch_size=128, device="cuda"):
 def make_predictions(dataset_paths, device="cuda"):
     mpaths, oof_paths = [], []
     for p in dataset_paths:
-        mpaths.append(sorted(list(p.glob(f"*/*/*.ckpt"))))
+        mpaths.append(sorted(list(p.rglob(f"*.ckpt"))))
         oof_paths.extend(sorted(list(p.glob(f"*.csv"))))
 
     print(
