@@ -2,10 +2,11 @@ import getpass
 from pathlib import Path
 
 import pandas as pd
+import numpy as np
 import pytorch_lightning as pl
 import torch
 import torch.nn as nn
-from sklearn.linear_model import LinearRegression
+from sklearn.linear_model import LinearRegression, RidgeCV
 from torch.utils.data import DataLoader, Dataset
 from transformers import (
     AutoConfig,
@@ -301,7 +302,7 @@ class CommonLitDataset(Dataset):
 
 
 # infer.py
-def infer(model, dataset, batch_size=64, device="cuda"):
+def infer(model, dataset, batch_size=128, device="cuda"):
     model.to(device)
     model.eval()
     loader = DataLoader(dataset, batch_size=batch_size, num_workers=1)
@@ -357,9 +358,10 @@ def make_predictions(dataset_paths, device="cuda"):
 
     # Stack using linear regression
     print(oofs[pred_cols].corr())
-    reg = LinearRegression()
+    reg = RidgeCV(alphas=(0.01, 0.05, 0.1, 0.5, 1.0, 5.0, 10.0, 50, 100, 500, 1000))
     reg.fit(oofs[pred_cols], oofs["target"])
     print(f"Weights: {reg.coef_}, bias: {reg.intercept_}")
+    print(f"Best RMSE: {np.sqrt(-reg.best_score_):0.5f}. Alpha {reg.alpha_}")
     df["target"] = reg.predict(df[pred_cols])
 
     df[["id", "target"]].to_csv("submission.csv", index=False)
@@ -382,10 +384,12 @@ if __name__ == "__main__":
         "20210608-233655",
         "20210609-004922",
         "20210609-020213",
+        "20210609-205046",
+        "20210609-220344",
         # zippy-caped-leech
         "20210609-125306",
         "20210609-141352",
-        "20210609-154233",
+        # "20210609-154233",
     ]
 
     if KERNEL:
