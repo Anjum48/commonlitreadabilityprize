@@ -370,26 +370,36 @@ def make_predictions(dataset_paths, device="cuda"):
 if __name__ == "__main__":
 
     model_folders = [
-        # proud-flashy-yak
-        # "20210608-183327",
-        # "20210608-190544",
-        # "20210608-193801",
-        # complex-heron-of-science
+        # complex-heron-of-science - roberta-base
         "20210609-171109",
         "20210609-174639",
         "20210609-182121",
         "20210609-192843",
         "20210609-200242",
-        # impetuous-marvellous-cockle
+        # impetuous-marvellous-cockle - roberta-large
         "20210608-233655",
         "20210609-004922",
         "20210609-020213",
         "20210609-205046",
         "20210609-220344",
-        # zippy-caped-leech
+        # zippy-caped-leech - albert-large
         "20210609-125306",
         "20210609-141352",
-        # "20210609-154233",
+        "20210609-154233",
+        "20210610-000227",
+        "20210610-013100",
+        # armored-cobalt-crow - distill roberta
+        "20210610-074205",
+        "20210610-080716",
+        "20210610-083206",
+        "20210610-085718",
+        "20210610-093912",
+        # big-slug-of-tranquility - funnel transformer
+        "20210610-100607",
+        "20210610-111551",
+        "20210610-122301",
+        "20210610-133140",
+        "20210610-144044",
     ]
 
     if KERNEL:
