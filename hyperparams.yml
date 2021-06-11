@@ -114,7 +114,7 @@ deberta:
 deberta_large:
   model_name: microsoft/deberta-large
   gpus: 1
-  batch_size: 16
+  batch_size: 12
   max_epochs: 4
   lr: 0.00005
   weight_decay: 1.0
