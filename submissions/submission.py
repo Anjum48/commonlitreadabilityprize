@@ -9,12 +9,6 @@ import torch
 import torch.nn as nn
 from sklearn.linear_model import LinearRegression, RidgeCV
 from torch.utils.data import DataLoader, Dataset
-from transformers import (
-    AutoConfig,
-    AutoModel,
-    AdamW,
-)
-from transformers.models.auto.tokenization_auto import AutoTokenizer
 
 KERNEL = False if getpass.getuser() == "anjum" else True
 
@@ -32,12 +26,25 @@ else:
     whls = [
         "../input/textstat/Pyphen-0.10.0-py3-none-any.whl",
         "../input/textstat/textstat-0.7.0-py3-none-any.whl",
+        "../input/transformers461/huggingface_hub-0.0.10-py3-none-any.whl",
+        "../input/transformers461/transformers-4.6.1-py3-none-any.whl",
     ]
 
     for w in whls:
-        subprocess.call(["pip", "install", w, "--no-deps"])
+        print("Installing", w)
+        subprocess.call(["pip", "install", w, "--no-deps", "--upgrade"])
 
 import textstat
+from transformers import (
+    AutoConfig,
+    AutoModel,
+    AdamW,
+)
+from transformers.models.auto.tokenization_auto import AutoTokenizer
+
+import transformers
+
+print("Transformers version:", transformers.__version__)
 
 
 # models.py
@@ -397,10 +404,10 @@ if __name__ == "__main__":
         "20210610-093912",
         # big-slug-of-tranquility - funnel transformer
         "20210610-100607",
-        "20210610-111551",
-        "20210610-122301",
-        "20210610-133140",
-        "20210610-144044",
+        #         "20210610-111551",
+        #         "20210610-122301",
+        #         "20210610-133140",
+        #         "20210610-144044",
     ]
 
     if KERNEL:
@@ -410,4 +417,4 @@ if __name__ == "__main__":
     else:
         dataset_paths = [OUTPUT_PATH / f for f in model_folders]
 
-    predictions = make_predictions(dataset_paths, device="cuda:1")
+    predictions = make_predictions(dataset_paths, device="cuda")

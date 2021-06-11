@@ -10,6 +10,7 @@ default_run:
   eps: 0.000001
   betas: !!python/tuple [0.9, 0.999]
   kl_loss: False
+  use_hidden: True
 
 
 bigbird:
@@ -70,6 +71,48 @@ distilroberta:
 
 funnel:
   model_name: funnel-transformer/large-base
+  gpus: 1
+  batch_size: 16
+  max_epochs: 4
+  lr: 0.00005
+  weight_decay: 1.0
+  val_check_interval: 5
+  # pretrained: True
+  eps: 0.000001
+  betas: !!python/tuple [0.9, 0.999]
+  kl_loss: False
+
+
+bert:
+  model_name: bert-base-uncased
+  gpus: 1
+  batch_size: 16
+  max_epochs: 4
+  lr: 0.00005
+  weight_decay: 1.0
+  val_check_interval: 5
+  # pretrained: True
+  eps: 0.000001
+  betas: !!python/tuple [0.9, 0.999]
+  kl_loss: False
+
+
+deberta:
+  model_name: microsoft/deberta-base
+  gpus: 1
+  batch_size: 16
+  max_epochs: 4
+  lr: 0.00005
+  weight_decay: 1.0
+  val_check_interval: 5
+  # pretrained: True
+  eps: 0.000001
+  betas: !!python/tuple [0.9, 0.999]
+  kl_loss: False
+
+
+deberta_large:
+  model_name: microsoft/deberta-large
   gpus: 1
   batch_size: 16
   max_epochs: 4

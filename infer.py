@@ -44,7 +44,6 @@ def make_oofs(folder_name, seed, device="cuda"):
 
     df = pd.read_csv(INPUT_PATH / "train.csv")
     df = create_folds(df, 5, seed)
-    print(df.head())
     df["prediction"] = 0
 
     for fold, (model, tokenizer) in enumerate(zip(models, tokenizers)):

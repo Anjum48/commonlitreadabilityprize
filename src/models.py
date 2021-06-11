@@ -38,6 +38,8 @@ class CommonLitModel(pl.LightningModule):
         kl_loss: bool = False,
         warmup: int = 100,
         hf_config=None,
+        pooled: bool = False,
+        use_hidden: bool = False,
         **kwargs,
     ):
         super().__init__()
@@ -48,7 +50,9 @@ class CommonLitModel(pl.LightningModule):
                 model_path = OUTPUT_PATH / "pretraining" / model_name
                 print("Using pretrained from", model_path)
                 self.config = AutoConfig.from_pretrained(model_name)
-                self.transformer = AutoModel.from_pretrained(model_path)
+                self.transformer = AutoModel.from_pretrained(
+                    model_path, output_hidden_states=True
+                )
             else:
                 self.config = AutoConfig.from_pretrained(
                     model_name,
@@ -61,10 +65,8 @@ class CommonLitModel(pl.LightningModule):
                 )
         else:
             self.config = hf_config
+            self.config.output_hidden_states = True
             self.transformer = AutoModel.from_config(hf_config)
-
-        # for param in self.transformer.parameters():
-        #     param.requires_grad = False
 
         # self.layer_norm = nn.LayerNorm(self.config.hidden_size)
         # Multi sample Dropout
@@ -74,38 +76,20 @@ class CommonLitModel(pl.LightningModule):
         # self._init_weights(self.layer_norm)
         # self._init_weights(self.regressor)
 
+        if use_hidden:
+            n_hidden = self.config.hidden_size * 2
+        else:
+            n_hidden = self.config.hidden_size
+
         self.seq_attn_head = nn.Sequential(
-            nn.LayerNorm(self.config.hidden_size),
+            nn.LayerNorm(n_hidden),
             # nn.Dropout(0.1),
-            AttentionBlock(self.config.hidden_size, self.config.hidden_size, 1),
+            AttentionBlock(n_hidden, n_hidden, 1),
             # nn.Dropout(0.1),
             # nn.Linear(self.config.hidden_size, 2 if kl_loss else 1),
         )
 
-        self.regressor = nn.Linear(self.config.hidden_size + 3, 2 if kl_loss else 1)
-
-        # self.seq_conv_attn_head = nn.Sequential(
-        #     nn.LayerNorm(self.config.hidden_size),
-        #     nn.Dropout(0.1),
-        #     nn.Conv1d(256, 128, kernel_size=5, padding=2),
-        #     nn.BatchNorm1d(128),
-        #     nn.Dropout(0.1),
-        #     AttentionBlock(self.config.hidden_size, self.config.hidden_size, 1),
-        #     nn.Dropout(0.1),
-        #     nn.Linear(self.config.hidden_size, 1),
-        # )
-
-        # self.transformer = AutoModelForSequenceClassification.from_pretrained(
-        #     model_name, cache_dir=MODEL_CACHE
-        # )
-        # self.in_features = self.transformer.classifier.dense.in_features
-        # self.transformer.classifier.out_proj = nn.Linear(self.in_features, 2)
-        # self.transformer.classifier = nn.Identity()
-        # self.att = AttentionBlock(self.in_features, self.in_features, 1)
-        # self.fc = nn.Linear(self.in_features, 2)
-
-        # self.head = nn.Linear(self.config.hidden_size * 4, 1)
-        # self.do = nn.Dropout(0.5)
+        self.regressor = nn.Linear(n_hidden + 3, 2 if kl_loss else 1)
 
         self.loss_fn = nn.MSELoss()
 
@@ -125,7 +109,7 @@ class CommonLitModel(pl.LightningModule):
     def forward(self, features, **kwargs):
         # out = self.transformer(**kwargs)["logits"]
 
-        x = self.transformer(**kwargs)[0]  # 0=seq_output, 1=pooler_output
+        model_out = self.transformer(**kwargs)  # 0=seq_output, 1=pooler_output
         # x = self.layer_norm(x)
         # for i, dropout in enumerate(self.dropouts):
         #     if i == 0:
@@ -134,28 +118,21 @@ class CommonLitModel(pl.LightningModule):
         #         out += self.regressor(dropout(x))
         # out /= len(self.dropouts)
 
-        out = self.seq_attn_head(x)
+        if self.hparams.use_hidden:
+            states = model_out[2]
+            out = torch.stack(
+                tuple(states[-i - 1] for i in range(self.config.num_hidden_layers)),
+                dim=0,
+            )
+            out_mean = torch.mean(out, dim=0)
+            out_max, _ = torch.max(out, dim=0)
+            out = torch.cat((out_mean, out_max), dim=-1)
+        else:
+            out = model_out[0]
+
+        out = self.seq_attn_head(out)
         out = torch.cat([out, features], -1)
         out = self.regressor(out)
-        # out = self.seq_conv_attn_head(x)
-
-        # out_mean = torch.mean(x, dim=1)
-        # out_max, _ = torch.max(x, dim=1)
-        # out = torch.cat((out_mean, out_max), dim=-1)
-        # out = torch.mean(
-        #     torch.stack([self.head(self.do(out)) for _ in range(5)], dim=0), dim=0
-        # )
-
-        # out = torch.stack(
-        #     tuple(x[-i - 1] for i in range(self.config.num_hidden_layers)), dim=0
-        # )
-        # out_mean = torch.mean(out, dim=0)
-        # out_max, _ = torch.max(out, dim=0)
-        # out = torch.cat((out_mean, out_max), dim=-1)
-        # out_mean = torch.mean(out, dim=1)
-        # out_max, _ = torch.max(out, dim=1)
-        # out = torch.cat((out_mean, out_max), dim=-1)
-        # out = self.head(out)
 
         if out.shape[1] == 1:
             return out, None
@@ -179,9 +156,6 @@ class CommonLitModel(pl.LightningModule):
     def training_epoch_end(self, training_step_outputs):
         avg_loss = torch.stack([x["loss"] for x in training_step_outputs]).mean()
         self.log("loss/train", avg_loss, sync_dist=True)
-
-        # for param in self.transformer.parameters():
-        #     param.requires_grad = True
 
     def validation_step(self, batch, batch_idx):
         inputs, labels, features = batch
