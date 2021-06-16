@@ -28,6 +28,10 @@ def aggregate_scores(n_folders=0):
                 scores.append(float(re.findall(r"rmse=?(\d\.\d+)", ckpt.stem)[0]))
             except IndexError:
                 print("Skipping", ckpt)
+
+        if len(scores) != 8:
+            scores = scores + [""] * (8 - len(scores))
+
         agg_scores.append(scores)
 
     return agg_scores
