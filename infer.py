@@ -82,6 +82,15 @@ if __name__ == "__main__":
         type=int,
     )
 
+    parser.add_argument(
+        "--gpu",
+        action="store",
+        dest="gpu",
+        help="GPU index to use",
+        default="0",
+        type=str,
+    )
+
     args = parser.parse_args()
-    # os.environ["CUDA_VISIBLE_DEVICES"] = str(args.gpu)
-    predictions = make_oofs(args.timestamp, args.seed, device="cuda:1")
+    os.environ["CUDA_VISIBLE_DEVICES"] = str(args.gpu)
+    predictions = make_oofs(args.timestamp, args.seed, device="cuda")
