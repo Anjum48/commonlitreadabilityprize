@@ -28,8 +28,9 @@ def run_fold(fold: int, args):
         save_weights_only=True,
     )
 
-    swa = StochasticWeightAveraging(swa_epoch_start=0.5)
-    callbacks.append(swa)
+    if args.swa:
+        swa = StochasticWeightAveraging(swa_epoch_start=0.5)
+        callbacks.append(swa)
 
     model = CommonLitModel(**args.__dict__)
 
