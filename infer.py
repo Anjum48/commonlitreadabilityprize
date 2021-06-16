@@ -14,7 +14,7 @@ from src.datasets import CommonLitDataset, create_folds
 from src.models import CommonLitModel
 
 
-def infer(model, dataset, batch_size=128, device="cuda"):
+def infer(model, dataset, batch_size=64, device="cuda"):
     model.to(device)
     model.eval()
     loader = DataLoader(dataset, batch_size=batch_size, num_workers=4)

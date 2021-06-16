@@ -1,4 +1,5 @@
 config=${1:-default_run}
+gpu=${2:-1}
 
 slug=$(python -c "from coolname import generate_slug; print(generate_slug(3))")
 
@@ -11,6 +12,6 @@ do
         python train.py --config $config --timestamp $timestamp --fold $i --seed $seed --slug $slug
     done
     python agg_scores.py
-    python infer.py --timestamp $timestamp --seed $seed -gpu 1
+    python infer.py --timestamp $timestamp --seed $seed --gpu $gpu
     # python upload_data.py --timestamp $timestamp
 done
