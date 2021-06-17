@@ -1,5 +1,5 @@
 config=${1:-default_run}
-gpu=${2:-1}
+gpu=${2:-0}
 
 slug=$(python -c "from coolname import generate_slug; print(generate_slug(3))")
 

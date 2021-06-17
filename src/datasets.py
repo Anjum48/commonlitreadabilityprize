@@ -90,13 +90,14 @@ class CommonLitDataset(Dataset):
         return input_dict, labels, features
 
     def generate_features(self, text):
-        means = torch.tensor([8.564220, 172.948483, 67.742121])
-        stds = torch.tensor([3.666797, 16.974894, 17.530230])
+        means = torch.tensor([67.742121, 10.308363])
+        stds = torch.tensor([17.530230, 3.298237])
         features = torch.tensor(
             [
-                textstat.sentence_count(text),
-                textstat.lexicon_count(text),
+                # textstat.sentence_count(text),
+                # textstat.lexicon_count(text),
                 textstat.flesch_reading_ease(text),
+                textstat.smog_index(text),
             ]
         )
         return (features - means) / stds

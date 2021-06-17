@@ -89,7 +89,7 @@ class CommonLitModel(pl.LightningModule):
             # nn.Linear(self.config.hidden_size, 2 if kl_loss else 1),
         )
 
-        self.regressor = nn.Linear(n_hidden + 3, 2 if kl_loss else 1)
+        self.regressor = nn.Linear(n_hidden + 2, 2 if kl_loss else 1)
 
         self.loss_fn = nn.MSELoss()
 
@@ -141,7 +141,7 @@ class CommonLitModel(pl.LightningModule):
             log_var = out[:, 1].view(-1, 1)
             return mean, log_var
 
-    def training_step(self, batch, batch_nb):
+    def training_step(self, batch, batch_idx):
         inputs, labels, features = batch
         mean, log_var = self.forward(features, **inputs)
         if self.hparams.kl_loss:
@@ -244,6 +244,6 @@ class CommonLitModel(pl.LightningModule):
         )
 
         sch = torch.optim.lr_scheduler.CosineAnnealingLR(
-            opt, T_max=self.trainer.max_epochs
+            opt, T_max=self.trainer.max_epochs, eta_min=self.hparams.lr / 10
         )
         return [opt], [sch]

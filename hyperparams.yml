@@ -1,125 +1,125 @@
-default_run:
+roberta_base:
   model_name: deepset/roberta-base-squad2
   gpus: 1
   batch_size: 16
-  max_epochs: 4
+  max_epochs: 6
   lr: 0.00005
   weight_decay: 1.0
   val_check_interval: 5
-  # pretrained: True
-  eps: 0.000001
-  betas: !!python/tuple [0.9, 0.999]
   kl_loss: False
-  use_hidden: True
+  swa: True
 
 
 bigbird:
   model_name: google/bigbird-roberta-large
   gpus: 1
   batch_size: 16
-  max_epochs: 4
+  max_epochs: 6
   lr: 0.00005
   weight_decay: 1.0
   val_check_interval: 5
-  # pretrained: True
-  eps: 0.000001
-  betas: !!python/tuple [0.9, 0.999]
   kl_loss: False
+  swa: True
 
 
-albert:
-  model_name: albert-large-v2
-  gpus: 1
-  batch_size: 16
-  max_epochs: 4
-  lr: 0.00005
-  weight_decay: 1.0
-  val_check_interval: 5
-  # pretrained: True
-  eps: 0.000001
-  betas: !!python/tuple [0.9, 0.999]
-  kl_loss: False
-
-
-large_run:
+roberta_large:
   model_name: deepset/roberta-large-squad2
   gpus: 1
   batch_size: 16
-  max_epochs: 4
+  max_epochs: 6
   lr: 0.00005
   weight_decay: 1.0
   val_check_interval: 5
-  # pretrained: True
-  eps: 0.000001
-  betas: !!python/tuple [0.9, 0.999]
   kl_loss: False
+  swa: True
 
 
 distilroberta:
   model_name: distilroberta-base
   gpus: 1
   batch_size: 16
-  max_epochs: 4
+  max_epochs: 6
   lr: 0.00005
   weight_decay: 1.0
   val_check_interval: 5
-  # pretrained: True
-  eps: 0.000001
+  kl_loss: False
+  swa: True
+
+
+albert:
+  model_name: albert-large-v2
+  gpus: 1
+  batch_size: 16
+  max_epochs: 6
+  lr: 0.00005
+  weight_decay: 0
+  val_check_interval: 5
+  eps: 0.0001
   betas: !!python/tuple [0.9, 0.999]
   kl_loss: False
+  swa: True
+  warmup: 100
+  grad_clip_val: 1.0
 
 
 funnel:
   model_name: funnel-transformer/large-base
-  gpus: 1
+  gpus: [1]
   batch_size: 16
-  max_epochs: 4
+  max_epochs: 6
   lr: 0.00005
   weight_decay: 1.0
   val_check_interval: 5
-  # pretrained: True
-  eps: 0.000001
+  eps: 0.0001
   betas: !!python/tuple [0.9, 0.999]
   kl_loss: False
+  swa: True
+  warmup: 100
 
 
 bert:
   model_name: bert-base-uncased
   gpus: 1
   batch_size: 16
-  max_epochs: 4
+  max_epochs: 6
   lr: 0.00005
   weight_decay: 1.0
   val_check_interval: 5
-  # pretrained: True
-  eps: 0.000001
-  betas: !!python/tuple [0.9, 0.999]
   kl_loss: False
+  swa: True
 
 
-deberta:
+deberta_base:
   model_name: microsoft/deberta-base
   gpus: 1
   batch_size: 16
-  max_epochs: 4
+  max_epochs: 6
   lr: 0.00005
   weight_decay: 1.0
   val_check_interval: 5
-  # pretrained: True
-  eps: 0.000001
-  betas: !!python/tuple [0.9, 0.999]
   kl_loss: False
+  swa: True
 
 
 deberta_large:
   model_name: microsoft/deberta-large
   gpus: 1
   batch_size: 12
-  max_epochs: 4
+  max_epochs: 6
   lr: 0.00005
   weight_decay: 1.0
   val_check_interval: 5
-  # pretrained: True
-  eps: 0.000001
-  betas: !!python/tuple [0.9, 0.999]
   kl_loss: False
+  swa: True
+
+
+bart_large:
+  model_name: facebook/bart-large
+  gpus: [0]
+  batch_size: 12
+  max_epochs: 6
+  lr: 0.000025
+  weight_decay: 1.0
+  val_check_interval: 5
+  kl_loss: False
+  swa: True
