@@ -1,7 +1,8 @@
 import pytorch_lightning as pl
 import torch
 import torch.nn as nn
-from transformers import AutoConfig, AutoModel, AdamW
+import wandb
+from transformers import AutoConfig, AutoModel, AdamW, get_cosine_schedule_with_warmup
 
 from src.config import MODEL_CACHE, OUTPUT_PATH
 from src.utils import add_weight_decay, get_optimizer_params
@@ -244,6 +245,15 @@ class CommonLitModel(pl.LightningModule):
         )
 
         sch = torch.optim.lr_scheduler.CosineAnnealingLR(
-            opt, T_max=self.trainer.max_epochs, eta_min=self.hparams.lr / 10
+            opt, T_max=1000, eta_min=self.hparams.lr / 10
         )
-        return [opt], [sch]
+        # return [opt], [sch]
+
+        # sch = get_cosine_schedule_with_warmup(
+        #     opt, self.hparams.warmup, num_training_steps=1000
+        # )
+
+        return {
+            "optimizer": opt,
+            "lr_scheduler": {"scheduler": sch, "interval": "step"},
+        }

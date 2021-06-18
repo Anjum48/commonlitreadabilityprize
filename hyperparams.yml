@@ -1,6 +1,6 @@
 roberta_base:
   model_name: deepset/roberta-base-squad2
-  gpus: 1
+  gpus: [1]
   batch_size: 16
   max_epochs: 6
   lr: 0.00005
@@ -51,10 +51,10 @@ albert:
   gpus: 1
   batch_size: 16
   max_epochs: 6
-  lr: 0.00005
-  weight_decay: 0
+  lr: 0.00003
+  weight_decay: 1.0
   val_check_interval: 5
-  eps: 0.0001
+  eps: 0.000001
   betas: !!python/tuple [0.9, 0.999]
   kl_loss: False
   swa: True
@@ -77,9 +77,9 @@ funnel:
   warmup: 100
 
 
-bert:
+bert_base:
   model_name: bert-base-uncased
-  gpus: 1
+  gpus: [1]
   batch_size: 16
   max_epochs: 6
   lr: 0.00005
@@ -88,6 +88,17 @@ bert:
   kl_loss: False
   swa: True
 
+
+bert_large:
+  model_name: bert-large-uncased
+  gpus: [1]
+  batch_size: 16
+  max_epochs: 6
+  lr: 0.00005
+  weight_decay: 1.0
+  val_check_interval: 5
+  kl_loss: False
+  swa: True
 
 deberta_base:
   model_name: microsoft/deberta-base
@@ -113,9 +124,21 @@ deberta_large:
   swa: True
 
 
+bart_base:
+  model_name: facebook/bart-base
+  gpus: [1]
+  batch_size: 16
+  max_epochs: 6
+  lr: 0.000025
+  weight_decay: 1.0
+  val_check_interval: 5
+  kl_loss: False
+  swa: True
+
+
 bart_large:
   model_name: facebook/bart-large
-  gpus: [0]
+  gpus: [1]
   batch_size: 12
   max_epochs: 6
   lr: 0.000025
