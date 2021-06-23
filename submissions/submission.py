@@ -7,7 +7,7 @@ import numpy as np
 import pytorch_lightning as pl
 import torch
 import torch.nn as nn
-from sklearn.linear_model import LinearRegression, RidgeCV
+from sklearn.linear_model import LinearRegression, RidgeCV, LassoCV
 from torch.utils.data import DataLoader, Dataset
 
 KERNEL = False if getpass.getuser() == "anjum" else True
@@ -78,6 +78,8 @@ class CommonLitModel(pl.LightningModule):
         kl_loss: bool = False,
         warmup: int = 100,
         hf_config=None,
+        pooled: bool = False,
+        use_hidden: bool = False,
         **kwargs,
     ):
         super().__init__()
@@ -88,7 +90,9 @@ class CommonLitModel(pl.LightningModule):
                 model_path = OUTPUT_PATH / "pretraining" / model_name
                 print("Using pretrained from", model_path)
                 self.config = AutoConfig.from_pretrained(model_name)
-                self.transformer = AutoModel.from_pretrained(model_path)
+                self.transformer = AutoModel.from_pretrained(
+                    model_path, output_hidden_states=True
+                )
             else:
                 self.config = AutoConfig.from_pretrained(
                     model_name,
@@ -101,17 +105,32 @@ class CommonLitModel(pl.LightningModule):
                 )
         else:
             self.config = hf_config
+            self.config.output_hidden_states = True
             self.transformer = AutoModel.from_config(hf_config)
 
+        # self.layer_norm = nn.LayerNorm(self.config.hidden_size)
+        # Multi sample Dropout
+        # self.dropouts = nn.ModuleList([nn.Dropout(0.5) for _ in range(5)])
+        # self.dropouts = nn.ModuleList([nn.Dropout(0.3)])
+        # self.regressor = nn.Linear(self.config.hidden_size, 2)
+        # self._init_weights(self.layer_norm)
+        # self._init_weights(self.regressor)
+
+        if use_hidden:
+            n_hidden = self.config.hidden_size * 2
+        else:
+            n_hidden = self.config.hidden_size
+
         self.seq_attn_head = nn.Sequential(
-            nn.LayerNorm(self.config.hidden_size),
+            nn.LayerNorm(n_hidden),
             # nn.Dropout(0.1),
-            AttentionBlock(self.config.hidden_size, self.config.hidden_size, 1),
+            AttentionBlock(n_hidden, n_hidden, 1),
             # nn.Dropout(0.1),
             # nn.Linear(self.config.hidden_size, 2 if kl_loss else 1),
         )
 
-        self.regressor = nn.Linear(self.config.hidden_size + 3, 2 if kl_loss else 1)
+        self.regressor = nn.Linear(n_hidden + 2, 2 if kl_loss else 1)
+
         self.loss_fn = nn.MSELoss()
 
     def _init_weights(self, module):
@@ -128,9 +147,30 @@ class CommonLitModel(pl.LightningModule):
             module.weight.data.fill_(1.0)
 
     def forward(self, features, **kwargs):
-        x = self.transformer(**kwargs)[0]  # 0=seq_output, 1=pooler_output
+        # out = self.transformer(**kwargs)["logits"]
 
-        out = self.seq_attn_head(x)
+        model_out = self.transformer(**kwargs)  # 0=seq_output, 1=pooler_output
+        # x = self.layer_norm(x)
+        # for i, dropout in enumerate(self.dropouts):
+        #     if i == 0:
+        #         out = self.regressor(dropout(x))
+        #     else:
+        #         out += self.regressor(dropout(x))
+        # out /= len(self.dropouts)
+
+        if self.hparams.use_hidden:
+            states = model_out[2]
+            out = torch.stack(
+                tuple(states[-i - 1] for i in range(self.config.num_hidden_layers)),
+                dim=0,
+            )
+            out_mean = torch.mean(out, dim=0)
+            out_max, _ = torch.max(out, dim=0)
+            out = torch.cat((out_mean, out_max), dim=-1)
+        else:
+            out = model_out[0]
+
+        out = self.seq_attn_head(out)
         out = torch.cat([out, features], -1)
         out = self.regressor(out)
 
@@ -141,7 +181,7 @@ class CommonLitModel(pl.LightningModule):
             log_var = out[:, 1].view(-1, 1)
             return mean, log_var
 
-    def training_step(self, batch, batch_nb):
+    def training_step(self, batch, batch_idx):
         inputs, labels, features = batch
         mean, log_var = self.forward(features, **inputs)
         if self.hparams.kl_loss:
@@ -227,9 +267,13 @@ class CommonLitModel(pl.LightningModule):
         )
 
         sch = torch.optim.lr_scheduler.CosineAnnealingLR(
-            opt, T_max=self.trainer.max_epochs
+            opt, T_max=1000, eta_min=self.hparams.lr / 10
         )
-        return [opt], [sch]
+
+        return {
+            "optimizer": opt,
+            "lr_scheduler": {"scheduler": sch, "interval": "step"},
+        }
 
 
 # utils.py
@@ -297,20 +341,21 @@ class CommonLitDataset(Dataset):
         return input_dict, labels, features
 
     def generate_features(self, text):
-        means = torch.tensor([8.564220, 172.948483, 67.742121])
-        stds = torch.tensor([3.666797, 16.974894, 17.530230])
+        means = torch.tensor([67.742121, 10.308363])
+        stds = torch.tensor([17.530230, 3.298237])
         features = torch.tensor(
             [
-                textstat.sentence_count(text),
-                textstat.lexicon_count(text),
+                # textstat.sentence_count(text),
+                # textstat.lexicon_count(text),
                 textstat.flesch_reading_ease(text),
+                textstat.smog_index(text),
             ]
         )
         return (features - means) / stds
 
 
 # infer.py
-def infer(model, dataset, batch_size=128, device="cuda"):
+def infer(model, dataset, batch_size=32, device="cuda"):
     model.to(device)
     model.eval()
     loader = DataLoader(dataset, batch_size=batch_size, num_workers=1)
@@ -366,10 +411,12 @@ def make_predictions(dataset_paths, device="cuda"):
 
     # Stack using linear regression
     print(oofs[pred_cols].corr())
-    reg = RidgeCV(alphas=(0.01, 0.05, 0.1, 0.5, 1.0, 5.0, 10.0, 50, 100, 500, 1000))
+    # reg = RidgeCV(alphas=(0.01, 0.05, 0.1, 0.5, 1.0, 5.0, 10.0, 50, 100, 500, 1000), normalize=True)
+    reg = LassoCV(max_iter=5000, random_state=48, n_jobs=-1, normalize=True)
     reg.fit(oofs[pred_cols], oofs["target"])
     print(f"Weights: {reg.coef_}, bias: {reg.intercept_}")
-    print(f"Best RMSE: {np.sqrt(-reg.best_score_):0.5f}. Alpha {reg.alpha_}")
+    # print(f"Best RMSE: {np.sqrt(-reg.best_score_):0.5f}. Alpha {reg.alpha_}")
+    print(f"Best RMSE: {np.sqrt(reg.mse_path_)[-1].mean():0.5f}")
     df["target"] = reg.predict(df[pred_cols])
 
     df[["id", "target"]].to_csv("submission.csv", index=False)
@@ -378,36 +425,28 @@ def make_predictions(dataset_paths, device="cuda"):
 if __name__ == "__main__":
 
     model_folders = [
-        # complex-heron-of-science - roberta-base
-        "20210609-171109",
-        "20210609-174639",
-        "20210609-182121",
-        "20210609-192843",
-        "20210609-200242",
-        # impetuous-marvellous-cockle - roberta-large
-        "20210608-233655",
-        "20210609-004922",
-        "20210609-020213",
-        "20210609-205046",
-        "20210609-220344",
-        # zippy-caped-leech - albert-large
-        "20210609-125306",
-        "20210609-141352",
-        "20210609-154233",
-        "20210610-000227",
-        "20210610-013100",
-        # armored-cobalt-crow - distill roberta
-        "20210610-074205",
-        "20210610-080716",
-        "20210610-083206",
-        "20210610-085718",
-        "20210610-093912",
-        # big-slug-of-tranquility - funnel transformer
-        "20210610-100607",
-        #         "20210610-111551",
-        #         "20210610-122301",
-        #         "20210610-133140",
-        #         "20210610-144044",
+        "20210614-234025",
+        "20210616-041221",
+        "20210617-135233",
+        "20210615-225055",
+        "20210618-030706",
+        "20210619-035747",
+        "20210614-173633",
+        "20210616-060255",
+        "20210619-004022",
+        "20210616-132341",
+        "20210617-102611",
+        "20210618-223208",
+        "20210615-094729",
+        "20210615-234038",
+        "20210618-092115",
+        "20210616-003038",
+        "20210616-075451",
+        "20210615-105329",
+        "20210617-232650",
+        # "20210614-203831",
+        "20210618-183719",
+        "20210622-152356",
     ]
 
     if KERNEL:
