@@ -3,7 +3,8 @@ gpu=${2:-0}
 
 slug=$(python -c "from coolname import generate_slug; print(generate_slug(3))")
 
-for seed in 48 123 2021 2016 1987
+# for seed in 48 123 2021 2016 1987
+for seed in 1 20 3 42 360
 do
     timestamp=$(date +%Y%m%d-%H%M%S)
     for i in $(seq 5)

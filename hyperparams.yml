@@ -1,5 +1,6 @@
 roberta_base:
-  model_name: deepset/roberta-base-squad2
+  # model_name: deepset/roberta-base-squad2
+  model_name: roberta-base
   gpus: [1]
   batch_size: 16
   max_epochs: 6
@@ -23,8 +24,9 @@ bigbird:
 
 
 roberta_large:
-  model_name: deepset/roberta-large-squad2
-  gpus: 1
+  # model_name: deepset/roberta-large-squad2
+  model_name: roberta-large
+  gpus: [1]
   batch_size: 16
   max_epochs: 6
   lr: 0.00005
@@ -36,7 +38,7 @@ roberta_large:
 
 distilroberta:
   model_name: distilroberta-base
-  gpus: 1
+  gpus: [1]
   batch_size: 16
   max_epochs: 6
   lr: 0.00005
@@ -48,7 +50,7 @@ distilroberta:
 
 albert:
   model_name: albert-large-v2
-  gpus: 1
+  gpus: [1]
   batch_size: 16
   max_epochs: 6
   lr: 0.00003
@@ -64,7 +66,7 @@ albert:
 
 funnel:
   model_name: funnel-transformer/large-base
-  gpus: [1]
+  gpus: [0]
   batch_size: 16
   max_epochs: 6
   lr: 0.00005
@@ -102,10 +104,10 @@ bert_large:
 
 deberta_base:
   model_name: microsoft/deberta-base
-  gpus: 1
+  gpus: [0]
   batch_size: 16
   max_epochs: 6
-  lr: 0.00005
+  lr: 0.000025
   weight_decay: 1.0
   val_check_interval: 5
   kl_loss: False
@@ -114,10 +116,10 @@ deberta_base:
 
 deberta_large:
   model_name: microsoft/deberta-large
-  gpus: 1
+  gpus: [0]
   batch_size: 12
   max_epochs: 6
-  lr: 0.00005
+  lr: 0.000025
   weight_decay: 1.0
   val_check_interval: 5
   kl_loss: False

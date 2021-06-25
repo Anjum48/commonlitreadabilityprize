@@ -247,11 +247,6 @@ class CommonLitModel(pl.LightningModule):
         sch = torch.optim.lr_scheduler.CosineAnnealingLR(
             opt, T_max=1000, eta_min=self.hparams.lr / 10
         )
-        # return [opt], [sch]
-
-        # sch = get_cosine_schedule_with_warmup(
-        #     opt, self.hparams.warmup, num_training_steps=1000
-        # )
 
         return {
             "optimizer": opt,
