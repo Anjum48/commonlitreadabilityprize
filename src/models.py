@@ -72,10 +72,7 @@ class CommonLitModel(pl.LightningModule):
         # self.layer_norm = nn.LayerNorm(self.config.hidden_size)
         # Multi sample Dropout
         # self.dropouts = nn.ModuleList([nn.Dropout(0.5) for _ in range(5)])
-        # self.dropouts = nn.ModuleList([nn.Dropout(0.3)])
         # self.regressor = nn.Linear(self.config.hidden_size, 2)
-        # self._init_weights(self.layer_norm)
-        # self._init_weights(self.regressor)
 
         if use_hidden:
             n_hidden = self.config.hidden_size * 2
@@ -93,19 +90,6 @@ class CommonLitModel(pl.LightningModule):
         self.regressor = nn.Linear(n_hidden + 2, 2 if kl_loss else 1)
 
         self.loss_fn = nn.MSELoss()
-
-    def _init_weights(self, module):
-        if isinstance(module, nn.Linear):
-            module.weight.data.normal_(mean=0.0, std=self.config.initializer_range)
-            if module.bias is not None:
-                module.bias.data.zero_()
-        elif isinstance(module, nn.Embedding):
-            module.weight.data.normal_(mean=0.0, std=self.config.initializer_range)
-            if module.padding_idx is not None:
-                module.weight.data[module.padding_idx].zero_()
-        elif isinstance(module, nn.LayerNorm):
-            module.bias.data.zero_()
-            module.weight.data.fill_(1.0)
 
     def forward(self, features, **kwargs):
         # out = self.transformer(**kwargs)["logits"]

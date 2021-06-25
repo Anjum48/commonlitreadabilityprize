@@ -1,4 +1,5 @@
 import getpass
+import gc
 from os import path
 from pathlib import Path
 
@@ -113,8 +114,6 @@ class CommonLitModel(pl.LightningModule):
         # self.dropouts = nn.ModuleList([nn.Dropout(0.5) for _ in range(5)])
         # self.dropouts = nn.ModuleList([nn.Dropout(0.3)])
         # self.regressor = nn.Linear(self.config.hidden_size, 2)
-        # self._init_weights(self.layer_norm)
-        # self._init_weights(self.regressor)
 
         if use_hidden:
             n_hidden = self.config.hidden_size * 2
@@ -132,19 +131,6 @@ class CommonLitModel(pl.LightningModule):
         self.regressor = nn.Linear(n_hidden + 2, 2 if kl_loss else 1)
 
         self.loss_fn = nn.MSELoss()
-
-    def _init_weights(self, module):
-        if isinstance(module, nn.Linear):
-            module.weight.data.normal_(mean=0.0, std=self.config.initializer_range)
-            if module.bias is not None:
-                module.bias.data.zero_()
-        elif isinstance(module, nn.Embedding):
-            module.weight.data.normal_(mean=0.0, std=self.config.initializer_range)
-            if module.padding_idx is not None:
-                module.weight.data[module.padding_idx].zero_()
-        elif isinstance(module, nn.LayerNorm):
-            module.bias.data.zero_()
-            module.weight.data.fill_(1.0)
 
     def forward(self, features, **kwargs):
         # out = self.transformer(**kwargs)["logits"]
@@ -392,6 +378,8 @@ def make_predictions(dataset_paths, device="cuda"):
     df = pd.read_csv(INPUT_PATH / "test.csv")
     output = 0
 
+    # print(mpaths)
+
     for i, group in enumerate(mpaths):
         output = 0
         for p in group:
@@ -401,6 +389,11 @@ def make_predictions(dataset_paths, device="cuda"):
             model = CommonLitModel.load_from_checkpoint(p, hf_config=config)
             dataset = CommonLitDataset(df, tokenizer)
             output += infer(model, dataset, device=device)
+
+            del model
+            del dataset
+            del tokenizer
+            gc.collect()
 
         df[f"model_{i}"] = output.squeeze().numpy() / len(group)
 
@@ -425,28 +418,26 @@ def make_predictions(dataset_paths, device="cuda"):
 if __name__ == "__main__":
 
     model_folders = [
-        "20210614-234025",
+        "20210623-232231",
         "20210616-041221",
         "20210617-135233",
-        "20210615-225055",
-        "20210618-030706",
-        "20210619-035747",
-        "20210614-173633",
-        "20210616-060255",
+        "20210624-012102",
         "20210619-004022",
-        "20210616-132341",
-        "20210617-102611",
-        "20210618-223208",
-        "20210615-094729",
+        "20210624-113506",  # Ghost
         "20210615-234038",
+        "20210619-035747",  # Ghost
+        "20210624-101855",
+        "20210618-223208",
+        "20210624-015812",
         "20210618-092115",
-        "20210616-003038",
-        "20210616-075451",
-        "20210615-105329",
-        "20210617-232650",
-        # "20210614-203831",
-        "20210618-183719",
-        "20210622-152356",
+        "20210616-060255",  # Ghost
+        "20210624-150250",
+        "20210623-201514",
+        "20210618-203441",
+        "20210624-044356",
+        "20210615-094729",
+        "20210614-203831",  # Possible problem?
+        "20210623-170657",
     ]
 
     if KERNEL:
