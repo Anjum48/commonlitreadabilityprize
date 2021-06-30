@@ -1,13 +1,14 @@
 roberta_base:
   # model_name: deepset/roberta-base-squad2
-  model_name: roberta-base
+  # model_name: roberta-base
+  model_name: xlm-roberta-base
   gpus: [1]
   batch_size: 16
   max_epochs: 6
   lr: 0.00005
   weight_decay: 1.0
   val_check_interval: 5
-  kl_loss: False
+  kl_loss: True
   swa: True
 
 
@@ -24,14 +25,15 @@ bigbird:
 
 
 roberta_large:
-  model_name: roberta-large
+  # model_name: roberta-large
+  model_name: xlm-roberta-large
   gpus: [1]
   batch_size: 16
   max_epochs: 6
   lr: 0.000025
   weight_decay: 1.0
   val_check_interval: 5
-  kl_loss: False
+  kl_loss: True
   swa: True
 
 
@@ -43,7 +45,7 @@ roberta_large_squad:
   lr: 0.000025
   weight_decay: 1.0
   val_check_interval: 5
-  kl_loss: False
+  kl_loss: True
   swa: True
 
 
@@ -61,7 +63,7 @@ distilroberta:
 
 albert:
   model_name: albert-large-v2
-  gpus: [1]
+  gpus: [0]
   batch_size: 16
   max_epochs: 6
   lr: 0.00003
@@ -69,7 +71,7 @@ albert:
   val_check_interval: 5
   eps: 0.000001
   betas: !!python/tuple [0.9, 0.999]
-  kl_loss: False
+  kl_loss: True
   swa: True
   warmup: 100
   grad_clip_val: 1.0
@@ -85,7 +87,7 @@ funnel:
   val_check_interval: 5
   eps: 0.0001
   betas: !!python/tuple [0.9, 0.999]
-  kl_loss: False
+  kl_loss: True
   swa: True
   warmup: 100
 
@@ -103,7 +105,19 @@ bert_base:
 
 
 bert_large:
-  model_name: bert-large-uncased
+  model_name: bert-large-cased
+  gpus: [0]
+  batch_size: 16
+  max_epochs: 6
+  lr: 0.00005
+  weight_decay: 1.0
+  val_check_interval: 5
+  kl_loss: False
+  swa: True
+
+
+bert_large_wm:
+  model_name: bert-large-cased-whole-word-masking
   gpus: [1]
   batch_size: 16
   max_epochs: 6
@@ -113,6 +127,7 @@ bert_large:
   kl_loss: False
   swa: True
 
+
 deberta_base:
   model_name: microsoft/deberta-base
   gpus: [0]
@@ -121,7 +136,7 @@ deberta_base:
   lr: 0.000025
   weight_decay: 1.0
   val_check_interval: 5
-  kl_loss: False
+  kl_loss: True
   swa: True
 
 
@@ -133,7 +148,7 @@ deberta_large:
   lr: 0.000025
   weight_decay: 1.0
   val_check_interval: 5
-  kl_loss: False
+  kl_loss: True
   swa: True
 
   
@@ -142,7 +157,8 @@ deberta_xlarge:
   gpus: 2
   plugins: ddp_sharded
   accelerator: ddp
-  batch_size: 6
+  precision: 16
+  batch_size: 10
   max_epochs: 6
   lr: 0.000025
   weight_decay: 1.0
@@ -153,13 +169,13 @@ deberta_xlarge:
 
 bart_base:
   model_name: facebook/bart-base
-  gpus: [1]
+  gpus: [0]
   batch_size: 16
   max_epochs: 6
   lr: 0.000025
   weight_decay: 1.0
   val_check_interval: 5
-  kl_loss: False
+  kl_loss: True
   swa: True
 
 
@@ -180,10 +196,10 @@ st_labse:
   gpus: [1]
   batch_size: 16
   max_epochs: 6
-  lr: 0.00005
+  lr: 0.000025
   weight_decay: 1.0
   val_check_interval: 5
-  kl_loss: False
+  kl_loss: True
   swa: True
 
 
@@ -193,6 +209,18 @@ st_bert:
   batch_size: 16
   max_epochs: 6
   lr: 0.00005
+  weight_decay: 1.0
+  val_check_interval: 5
+  kl_loss: False
+  swa: True
+
+
+sentence_bert:
+  model_name: deepset/sentence_bert
+  gpus: [1]
+  batch_size: 16
+  max_epochs: 6
+  lr: 0.000025
   weight_decay: 1.0
   val_check_interval: 5
   kl_loss: False
