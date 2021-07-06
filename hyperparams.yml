@@ -225,3 +225,52 @@ sentence_bert:
   val_check_interval: 5
   kl_loss: False
   swa: True
+
+
+gpt2:
+  model_name: gpt2
+  gpus: [1]
+  batch_size: 16
+  max_epochs: 6
+  lr: 0.00005
+  weight_decay: 1.0
+  val_check_interval: 5
+  kl_loss: False
+  swa: True
+
+
+electra:
+  model_name: google/electra-large-discriminator
+  gpus: [0]
+  batch_size: 16
+  max_epochs: 6
+  lr: 0.00001
+  warmup: 100
+  weight_decay: 1.0
+  val_check_interval: 5
+  kl_loss: True
+  swa: True
+
+
+convbert:
+  model_name: YituTech/conv-bert-base
+  gpus: [1]
+  batch_size: 16
+  max_epochs: 6
+  lr: 0.00005
+  weight_decay: 1.0
+  val_check_interval: 5
+  kl_loss: False
+  swa: True
+
+
+ctrl:
+  model_name: ctrl  # 6.5GB!!
+  gpus: [1]
+  batch_size: 16
+  max_epochs: 6
+  lr: 0.00005
+  weight_decay: 1.0
+  val_check_interval: 5
+  kl_loss: False
+  swa: True
