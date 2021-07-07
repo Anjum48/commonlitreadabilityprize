@@ -9,6 +9,8 @@ import pytorch_lightning as pl
 import torch
 import torch.nn as nn
 from sklearn.linear_model import LinearRegression, RidgeCV, LassoCV
+from sklearn.metrics import mean_squared_error
+from sklearn.model_selection import StratifiedKFold
 from torch.utils.data import DataLoader, Dataset
 
 KERNEL = False if getpass.getuser() == "anjum" else True
@@ -114,6 +116,8 @@ class CommonLitModel(pl.LightningModule):
         # self.dropouts = nn.ModuleList([nn.Dropout(0.5) for _ in range(5)])
         # self.dropouts = nn.ModuleList([nn.Dropout(0.3)])
         # self.regressor = nn.Linear(self.config.hidden_size, 2)
+        # self._init_weights(self.layer_norm)
+        # self._init_weights(self.regressor)
 
         if use_hidden:
             n_hidden = self.config.hidden_size * 2
@@ -131,6 +135,19 @@ class CommonLitModel(pl.LightningModule):
         self.regressor = nn.Linear(n_hidden + 2, 2 if kl_loss else 1)
 
         self.loss_fn = nn.MSELoss()
+
+    def _init_weights(self, module):
+        if isinstance(module, nn.Linear):
+            module.weight.data.normal_(mean=0.0, std=self.config.initializer_range)
+            if module.bias is not None:
+                module.bias.data.zero_()
+        elif isinstance(module, nn.Embedding):
+            module.weight.data.normal_(mean=0.0, std=self.config.initializer_range)
+            if module.padding_idx is not None:
+                module.weight.data[module.padding_idx].zero_()
+        elif isinstance(module, nn.LayerNorm):
+            module.bias.data.zero_()
+            module.weight.data.fill_(1.0)
 
     def forward(self, features, **kwargs):
         # out = self.transformer(**kwargs)["logits"]
@@ -344,7 +361,7 @@ class CommonLitDataset(Dataset):
 def infer(model, dataset, batch_size=32, device="cuda"):
     model.to(device)
     model.eval()
-    loader = DataLoader(dataset, batch_size=batch_size, num_workers=1)
+    loader = DataLoader(dataset, batch_size=batch_size, num_workers=4)
 
     predictions = []
     with torch.no_grad():
@@ -354,6 +371,47 @@ def infer(model, dataset, batch_size=32, device="cuda"):
             predictions.append(mean.cpu())
 
     return torch.cat(predictions, 0)
+
+
+# https://kaggler.readthedocs.io/en/latest/_modules/kaggler/ensemble/linear.html#netflix
+def netflix(es, ps, e0, l=0.0001):
+    """Combine predictions with the optimal weights to minimize RMSE.
+
+    Ref: Töscher, A., Jahrer, M., & Bell, R. M. (2009). The bigchaos solution to the netflix grand prize.
+
+    Args:
+        es (list of float): RMSEs of predictions
+        ps (list of np.array): predictions
+        e0 (float): RMSE of all zero prediction
+        l (float): lambda as in the ridge regression
+
+    Returns:
+        (tuple):
+
+            - (np.array): ensemble predictions
+            - (np.array): weights for input predictions
+    """
+    m = len(es)
+    n = len(ps[0])
+
+    X = np.stack(ps).T
+    pTy = 0.5 * (n * e0 ** 2 + (X ** 2).sum(axis=0) - n * np.array(es) ** 2)
+
+    w = np.linalg.pinv(X.T.dot(X) + l * n * np.eye(m)).dot(pTy)
+
+    return X.dot(w), w
+
+
+def create_folds(data, y, n_splits=5, random_state=None):
+    data = data.sample(frac=1, random_state=random_state).reset_index(drop=True)
+    num_bins = int(np.floor(1 + np.log2(len(data))))
+    data.loc[:, "bins"] = pd.cut(y, bins=num_bins, labels=False)
+    kf = StratifiedKFold(n_splits=n_splits, shuffle=True, random_state=random_state)
+
+    splits = []
+    for f, (t_, v_) in enumerate(kf.split(X=data, y=data.bins.values)):
+        splits.append((t_, v_))
+    return splits
 
 
 def make_predictions(dataset_paths, device="cuda"):
@@ -383,12 +441,14 @@ def make_predictions(dataset_paths, device="cuda"):
     for i, group in enumerate(mpaths):
         output = 0
         for p in group:
-            print(p)
+            ckpt_size = p.stat().st_size / 1024 ** 3
+            bs = 32 if ckpt_size > 1.5 else 64
+            print(f"{p}, Size: {ckpt_size:0.1f}")
             config = AutoConfig.from_pretrained(str(p.parent))
             tokenizer = AutoTokenizer.from_pretrained(str(p.parent))
             model = CommonLitModel.load_from_checkpoint(p, hf_config=config)
             dataset = CommonLitDataset(df, tokenizer)
-            output += infer(model, dataset, device=device)
+            output += infer(model, dataset, batch_size=bs, device=device)
 
             del model
             del dataset
@@ -403,14 +463,45 @@ def make_predictions(dataset_paths, device="cuda"):
     # df["target"] = df[pred_cols].mean(1)
 
     # Stack using linear regression
-    print(oofs[pred_cols].corr())
-    # reg = RidgeCV(alphas=(0.01, 0.05, 0.1, 0.5, 1.0, 5.0, 10.0, 50, 100, 500, 1000), normalize=True)
-    reg = LassoCV(max_iter=5000, random_state=48, n_jobs=-1, normalize=True)
-    reg.fit(oofs[pred_cols], oofs["target"])
-    print(f"Weights: {reg.coef_}, bias: {reg.intercept_}")
-    # print(f"Best RMSE: {np.sqrt(-reg.best_score_):0.5f}. Alpha {reg.alpha_}")
-    print(f"Best RMSE: {np.sqrt(reg.mse_path_)[-1].mean():0.5f}")
-    df["target"] = reg.predict(df[pred_cols])
+    #     print(oofs[pred_cols].corr())
+    #     # reg = RidgeCV(alphas=(0.01, 0.05, 0.1, 0.5, 1.0, 5.0, 10.0, 50, 100, 500, 1000), normalize=True)
+    #     reg = LassoCV(max_iter=5000, random_state=48, n_jobs=-1, normalize=True)
+    #     reg.fit(oofs[pred_cols], oofs["target"])
+    #     print(f"Weights: {reg.coef_}, bias: {reg.intercept_}")
+    #     # print(f"Best RMSE: {np.sqrt(-reg.best_score_):0.5f}. Alpha {reg.alpha_}")
+    #     print(f"Best RMSE: {np.sqrt(reg.mse_path_)[-1].mean():0.5f}")
+    #     df["target"] = reg.predict(df[pred_cols])
+
+    # Stack using Netflix method
+    oof_preds = [oofs[c].values for c in pred_cols]
+    rmses = [np.sqrt(mean_squared_error(p, oofs["target"])) for p in oof_preds]
+    ensemble, weights = netflix(rmses, oof_preds, 1.4100)
+    score = np.sqrt(mean_squared_error(ensemble, oofs["target"]))
+    print(f"Best RMSE: {score:0.5f}")
+    df["target"] = df[pred_cols] @ weights
+
+    # Netflix with 3-seed CV
+    #     X, y = oofs[pred_cols], oofs["target"]
+    #     scores = []
+    #     weights_agg = 0
+    #     for seed in [48, 42, 3]:
+    #         for fold, (trn_idx, val_idx) in enumerate(create_folds(X, y, random_state=seed)):
+    #             train_oofs = X.loc[trn_idx]
+    #             valid_oofs = X.loc[val_idx]
+    #             valid_target = y.loc[val_idx]
+
+    #             train_preds = [train_oofs[c].values for c in X.columns]
+    #             rmses = [np.sqrt(mean_squared_error(X[c], y)) for c in X.columns]
+    #             _, weights = netflix(rmses, train_preds, 1.4100)
+
+    #             val_pred = valid_oofs @ weights
+    #             score = np.sqrt(mean_squared_error(val_pred, valid_target))
+    #             scores.append(score)
+    #             weights_agg += weights
+
+    #     weights_agg /= len(scores)
+    #     print(f"CV RMSE: {np.mean(scores):0.5f}")
+    #     df["target"] = df[pred_cols] @ weights_agg
 
     df[["id", "target"]].to_csv("submission.csv", index=False)
 
@@ -418,26 +509,44 @@ def make_predictions(dataset_paths, device="cuda"):
 if __name__ == "__main__":
 
     model_folders = [
-        "20210623-232231",
-        "20210616-041221",
-        "20210617-135233",
-        "20210624-012102",
-        "20210619-004022",
-        "20210624-113506",  # Ghost
-        "20210615-234038",
-        "20210619-035747",  # Ghost
-        "20210624-101855",
-        "20210618-223208",
-        "20210624-015812",
-        "20210618-092115",
-        "20210616-060255",  # Ghost
-        "20210624-150250",
-        "20210623-201514",
-        "20210618-203441",
-        "20210624-044356",
+        "20210614-203831",
         "20210615-094729",
-        "20210614-203831",  # Possible problem?
-        "20210623-170657",
+        "20210615-105329",
+        "20210615-234038",
+        "20210616-003038",
+        "20210616-041221",
+        "20210616-132341",
+        "20210617-135233",
+        "20210618-203441",
+        "20210618-223208",
+        "20210619-004022",
+        "20210619-035747",
+        "20210619-064351",
+        "20210619-093050",
+        "20210622-152356",
+        "20210623-110954",
+        "20210623-232231",
+        "20210624-012102",
+        "20210624-015812",
+        "20210624-101855",
+        "20210624-113506",
+        "20210624-150250v2",
+        "20210627-105133",
+        "20210627-152616",
+        "20210627-105144",
+        "20210627-151904",
+        "20210628-085322",
+        "20210627-195827",
+        "20210627-213946",
+        "20210628-031447",
+        "20210628-145921",
+        "20210628-212819",
+        "20210629-012726",
+        "20210629-035901",
+        "20210629-183058",
+        "20210629-224305",
+        "20210629-163239",
+        "20210705-162253",
     ]
 
     if KERNEL:
