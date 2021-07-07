@@ -23,15 +23,18 @@ def aggregate_scores(n_folders=0):
                         scores.append(cfg["slug"])
                         scores.append(f.name)
                         scores.append(cfg["seed"])
+                        model = cfg["model_name"]
 
                 # epoch=02-rmse=0.5375 - match the last number. = sign optional
                 scores.append(float(re.findall(r"rmse=?(\d\.\d+)", ckpt.stem)[0]))
             except IndexError:
+                model = None
                 print("Skipping", ckpt)
 
         if len(scores) != 8:
             scores = scores + [""] * (8 - len(scores))
 
+        scores.append(model)
         agg_scores.append(scores)
 
     return agg_scores
@@ -39,7 +42,7 @@ def aggregate_scores(n_folders=0):
 
 def write_to_gspread(scores):
     df = pd.DataFrame(scores)
-    df.columns = [
+    cols = [
         "Group name",
         "Timestamp",
         "Seed",
@@ -48,7 +51,15 @@ def write_to_gspread(scores):
         "Fold 2",
         "Fold 3",
         "Fold 4",
+        "Model",
     ]
+    df.columns = cols
+    df["Mean"] = df[[f"Fold {i}" for i in range(5)]].mean(1)
+    df["Std dev"] = df[[f"Fold {i}" for i in range(5)]].std(1)
+
+    # Reorder columns
+    cols_reordered = cols[:-1] + ["Mean", "Std dev"] + [cols[-1]]
+    df = df[cols_reordered]
 
     gc = gspread.service_account()
     sh = gc.open("commonlit_readability")
