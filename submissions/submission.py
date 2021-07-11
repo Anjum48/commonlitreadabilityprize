@@ -8,7 +8,7 @@ import numpy as np
 import pytorch_lightning as pl
 import torch
 import torch.nn as nn
-from sklearn.linear_model import LinearRegression, RidgeCV, LassoCV
+from sklearn.linear_model import RidgeCV, LassoCV
 from sklearn.metrics import mean_squared_error
 from sklearn.model_selection import StratifiedKFold
 from torch.utils.data import DataLoader, Dataset
@@ -17,7 +17,7 @@ KERNEL = False if getpass.getuser() == "anjum" else True
 
 if not KERNEL:
     INPUT_PATH = Path("/mnt/storage_dimm2/kaggle_data/commonlitreadabilityprize")
-    OUTPUT_PATH = Path("/mnt/storage/kaggle_output/commonlitreadabilityprize")
+    OUTPUT_PATH = Path("/mnt/storage_dimm2/kaggle_output/commonlitreadabilityprize")
     MODEL_CACHE = Path("/mnt/storage/model_cache/torch")
 else:
     INPUT_PATH = Path("../input/commonlitreadabilityprize")
@@ -436,24 +436,26 @@ def make_predictions(dataset_paths, device="cuda"):
     df = pd.read_csv(INPUT_PATH / "test.csv")
     output = 0
 
-    # print(mpaths)
-
     for i, group in enumerate(mpaths):
         output = 0
-        for p in group:
+        for j, p in enumerate(group):
             ckpt_size = p.stat().st_size / 1024 ** 3
             bs = 32 if ckpt_size > 1.5 else 64
-            print(f"{p}, Size: {ckpt_size:0.1f}")
-            config = AutoConfig.from_pretrained(str(p.parent))
-            tokenizer = AutoTokenizer.from_pretrained(str(p.parent))
+            print(f"{i} {p}, Size: {ckpt_size:0.2f}")
+
+            if j == 0:
+                config = AutoConfig.from_pretrained(str(p.parent))
+                tokenizer = AutoTokenizer.from_pretrained(str(p.parent))
+                dataset = CommonLitDataset(df, tokenizer)
+
             model = CommonLitModel.load_from_checkpoint(p, hf_config=config)
-            dataset = CommonLitDataset(df, tokenizer)
             output += infer(model, dataset, batch_size=bs, device=device)
 
             del model
-            del dataset
-            del tokenizer
-            gc.collect()
+
+        del dataset
+        del tokenizer
+        gc.collect()
 
         df[f"model_{i}"] = output.squeeze().numpy() / len(group)
 
@@ -511,42 +513,42 @@ if __name__ == "__main__":
     model_folders = [
         "20210614-203831",
         "20210615-094729",
-        "20210615-105329",
-        "20210615-234038",
         "20210616-003038",
         "20210616-041221",
         "20210616-132341",
         "20210617-135233",
-        "20210618-203441",
+        "20210618-183719",
         "20210618-223208",
         "20210619-004022",
         "20210619-035747",
         "20210619-064351",
-        "20210619-093050",
-        "20210622-152356",
-        "20210623-110954",
+        "20210619-093050",  # 187 GB
+        # "20210623-201514",  # 194 GB
         "20210623-232231",
         "20210624-012102",
         "20210624-015812",
         "20210624-101855",
+        "20210624-044356",
         "20210624-113506",
-        "20210624-150250v2",
+        "20210624-150250",  # v2
         "20210627-105133",
         "20210627-152616",
         "20210627-105144",
         "20210627-151904",
+        "20210628-045559",
         "20210628-085322",
-        "20210627-195827",
         "20210627-213946",
         "20210628-031447",
+        "20210628-114738",
         "20210628-145921",
         "20210628-212819",
         "20210629-012726",
         "20210629-035901",
         "20210629-183058",
-        "20210629-224305",
         "20210629-163239",
         "20210705-162253",
+        "20210710-124531",
+        "20210710-173710",
     ]
 
     if KERNEL:
