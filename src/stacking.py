@@ -1,14 +1,48 @@
 import numpy as np
 import pandas as pd
 import torch
-from sklearn.model_selection import LeaveOneOut
+from sklearn.linear_model import BayesianRidge, RidgeCV
+from sklearn.metrics import mean_squared_error
+from sklearn.model_selection import LeaveOneOut, StratifiedKFold
 
 from config import INPUT_PATH, OUTPUT_PATH
+
+# from src.datasets import create_folds
 from model_folders import model_folders
 
 
-def build_oof_df():
-    dataset_paths = [OUTPUT_PATH / f for f in model_folders]
+def create_folds(data, n_splits, random_state=None):
+    # we create a new column called fold and fill it with -1
+    data["fold"] = -1
+
+    # the next step is to randomize the rows of the data
+    data = data.sample(frac=1, random_state=random_state).reset_index(drop=True)
+
+    # calculate number of bins by Sturge's rule
+    # I take the floor of the value, you can also
+    # just round it
+    num_bins = int(np.floor(1 + np.log2(len(data))))
+
+    # bin targets
+    data.loc[:, "bins"] = pd.cut(data["target"], bins=num_bins, labels=False)
+
+    # initiate the kfold class from model_selection module
+    kf = StratifiedKFold(n_splits=n_splits, shuffle=True, random_state=random_state)
+
+    # fill the new kfold column
+    # note that, instead of targets, we use bins!
+    for f, (t_, v_) in enumerate(kf.split(X=data, y=data.bins.values)):
+        data.loc[v_, "fold"] = f
+
+    # drop the bins column
+    data = data.drop("bins", axis=1)
+
+    # return dataframe with folds
+    return data
+
+
+def build_oof_df(folders):
+    dataset_paths = [OUTPUT_PATH / f for f in folders]
     mpaths, oof_paths = [], []
     for p in dataset_paths:
         mpaths.append(sorted(list(p.glob(f"*/*/*.ckpt"))))
@@ -17,14 +51,14 @@ def build_oof_df():
     oofs = pd.read_csv(
         INPUT_PATH / "train.csv", usecols=["id", "target", "standard_error"]
     ).sort_values(by="id")
-    for i, (p, f) in enumerate(zip(oof_paths, model_folders)):
+    for i, p in enumerate(oof_paths):
         x = pd.read_csv(p).sort_values(by="id")
-        oofs[f] = x["prediction"].values
+        oofs[p.parent.name] = x["prediction"].values
 
-    return oofs
+    return oofs.reset_index(drop=True)
 
 
-def scorer(oofs, folders, device="cuda:1"):
+def scorer_lstsq(oofs, folders, device="cuda:1"):
     data = oofs[folders].values
     target = oofs["target"].values.reshape(-1, 1)
 
@@ -49,6 +83,50 @@ def scorer(oofs, folders, device="cuda:1"):
     return torch.sqrt(mse).cpu().numpy()
 
 
+def scorer_bayesian_ridge(oofs, folders, folds=10):
+    oofs = create_folds(oofs, folds, 48)
+    fold_scores = []
+
+    for fold in range(folds):
+        trn_df = oofs.query(f"fold != {fold}")
+        val_df = oofs.query(f"fold == {fold}")
+
+        reg = BayesianRidge(tol=1e-4, fit_intercept=False)
+        reg.fit(trn_df[folders], trn_df["target"])
+        y_pred = reg.predict(val_df[folders])
+
+        mse = mean_squared_error(y_pred, val_df["target"])
+        fold_scores.append(mse)
+
+    return np.sqrt(np.mean(fold_scores))
+
+
+def scorer_ridge(oofs, folders):
+    reg = RidgeCV(
+        alphas=(
+            0.0001,
+            0.0005,
+            0.001,
+            0.005,
+            0.01,
+            0.05,
+            0.1,
+            0.5,
+            1.0,
+            5.0,
+            10.0,
+            50,
+            100,
+            500,
+            1000,
+        ),
+        normalize=True,
+    )
+
+    reg.fit(oofs[folders], oofs["target"])
+    return np.sqrt(-reg.best_score_)
+
+
 def get_size(folder):
     # Ubuntu uses 1000**3, Kaggle use 1024**3
     return (
@@ -57,11 +135,9 @@ def get_size(folder):
     )
 
 
-def pruning(oofs):
-    candidates = model_folders.copy()
+def pruning(oofs, scorer=scorer_lstsq, candidates=model_folders):
     history = []
     score = scorer(oofs, candidates)
-
     print(f"Initial score {score:0.5f}")
 
     while len(candidates) > 1:
@@ -82,14 +158,16 @@ def pruning(oofs):
             }
         )
         print(
-            f"{len(history)} New score {score:0.5f}. Size: {size:0.1f} GB. Removed {removed}"
+            f"{len(history)} New score {score:0.5f}. Size: {size:0.1f} GB.",
+            f"Removed {removed}. {len(candidates)} models",
         )
 
     history = pd.DataFrame(history)
-    history.to_csv("pruning_lstsq.csv", index=False)
+    history.to_csv("pruning_bayesian.csv", index=False)
     print(history.tail(40))
 
 
 if __name__ == "__main__":
-    oofs = build_oof_df()
-    pruning(oofs)
+    oofs = build_oof_df(model_folders)
+    pruning(oofs, scorer_bayesian_ridge, model_folders)
+    # pruning(oofs, scorer_ridge, model_folders)
