@@ -1,7 +1,7 @@
 import numpy as np
 import pandas as pd
 import torch
-from sklearn.linear_model import BayesianRidge, RidgeCV
+from sklearn.linear_model import BayesianRidge, RidgeCV, ElasticNetCV
 from sklearn.metrics import mean_squared_error
 from sklearn.model_selection import LeaveOneOut, StratifiedKFold
 
@@ -39,6 +39,14 @@ def create_folds(data, n_splits, random_state=None):
 
     # return dataframe with folds
     return data
+
+
+def cv_iterator(df, folds=10, random_state=48):
+    df = create_folds(df, folds, random_state)
+    for fold in range(folds):
+        trn_df = df.query(f"fold != {fold}").copy()
+        val_df = df.query(f"fold == {fold}").copy()
+        yield trn_df.index.values, val_df.index.values
 
 
 def build_oof_df(folders):
@@ -99,6 +107,19 @@ def scorer_bayesian_ridge(oofs, folders, folds=10):
         fold_scores.append(mse)
 
     return np.sqrt(np.mean(fold_scores))
+
+
+def scorer_elastic(oofs, folders, folds=10, random_state=48):
+    reg = ElasticNetCV(
+        cv=cv_iterator(oofs, folds, random_state=random_state),
+        random_state=random_state,
+        # l1_ratio=[0.1, 0.3, 0.5, 0.7, 0.9, 0.95, 0.99, 1],
+        max_iter=20000,
+        n_jobs=-1,
+        fit_intercept=False,
+    )
+    reg.fit(oofs[folders], oofs["target"])
+    return np.sqrt(np.mean(reg.mse_path_[-1]))
 
 
 def scorer_ridge(oofs, folders):
@@ -163,11 +184,16 @@ def pruning(oofs, scorer=scorer_lstsq, candidates=model_folders):
         )
 
     history = pd.DataFrame(history)
-    history.to_csv("pruning_bayesian.csv", index=False)
+    # history.to_csv("pruning_bayesian.csv", index=False)
+    # history.to_csv("pruning_ridgecv.csv", index=False)
+    # history.to_csv("pruning_lstsq.csv", index=False)
+    history.to_csv("pruning_elastic.csv", index=False)
     print(history.tail(40))
 
 
 if __name__ == "__main__":
     oofs = build_oof_df(model_folders)
-    pruning(oofs, scorer_bayesian_ridge, model_folders)
+    # pruning(oofs, scorer_bayesian_ridge, model_folders)
     # pruning(oofs, scorer_ridge, model_folders)
+    # pruning(oofs, scorer_lstsq, model_folders)
+    pruning(oofs, scorer_elastic, model_folders)

@@ -12,6 +12,6 @@ for i in $(seq 1 108); do
         # say nothing pending
         break
     fi
-    sleep 299
+    sleep 119
 done
 
