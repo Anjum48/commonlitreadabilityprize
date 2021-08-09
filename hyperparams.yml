@@ -2,7 +2,7 @@ roberta_base:
   model_name: deepset/roberta-base-squad2
   # model_name: roberta-base
   # model_name: xlm-roberta-base
-  gpus: [1]
+  gpus: 1
   batch_size: 16
   max_epochs: 6
   lr: 0.00005
@@ -27,7 +27,7 @@ bigbird:
 roberta_large:
   model_name: roberta-large
   # model_name: xlm-roberta-large
-  gpus: [1]
+  gpus: 1
   batch_size: 16
   max_epochs: 6
   lr: 0.000025
@@ -39,7 +39,7 @@ roberta_large:
 
 roberta_large_squad:
   model_name: deepset/roberta-large-squad2
-  gpus: [1]
+  gpus: 1
   batch_size: 16
   max_epochs: 6
   lr: 0.000025
@@ -51,7 +51,7 @@ roberta_large_squad:
 
 distilroberta:
   model_name: distilroberta-base
-  gpus: [1]
+  gpus: 1
   batch_size: 16
   max_epochs: 6
   lr: 0.00005
@@ -63,7 +63,7 @@ distilroberta:
 
 albert:
   model_name: albert-large-v2
-  gpus: [0]
+  gpus: 1
   batch_size: 16
   max_epochs: 6
   lr: 0.00003
@@ -79,7 +79,7 @@ albert:
 
 funnel:
   model_name: funnel-transformer/large-base
-  gpus: [0]
+  gpus: 1
   batch_size: 16
   max_epochs: 6
   lr: 0.00005
@@ -94,7 +94,7 @@ funnel:
 
 bert_base:
   model_name: bert-base-uncased
-  gpus: [1]
+  gpus: 1
   batch_size: 16
   max_epochs: 6
   lr: 0.00005
@@ -106,7 +106,7 @@ bert_base:
 
 bert_large:
   model_name: bert-large-cased
-  gpus: [0]
+  gpus: 1
   batch_size: 16
   max_epochs: 6
   lr: 0.00005
@@ -118,7 +118,7 @@ bert_large:
 
 bert_large_wm:
   model_name: bert-large-cased-whole-word-masking
-  gpus: [1]
+  gpus: 1
   batch_size: 16
   max_epochs: 6
   lr: 0.00005
@@ -130,7 +130,7 @@ bert_large_wm:
 
 deberta_base:
   model_name: microsoft/deberta-base
-  gpus: [0]
+  gpus: 1
   batch_size: 16
   max_epochs: 6
   lr: 0.000025
@@ -142,7 +142,7 @@ deberta_base:
 
 deberta_large:
   model_name: microsoft/deberta-large
-  gpus: [0]
+  gpus: 1
   batch_size: 12
   max_epochs: 6
   lr: 0.000025
@@ -154,7 +154,7 @@ deberta_large:
   
 deberta_xlarge:
   model_name: microsoft/deberta-v2-xlarge
-  gpus: 2
+  gpus: 1
   plugins: ddp_sharded
   accelerator: ddp
   precision: 16
@@ -169,7 +169,7 @@ deberta_xlarge:
 
 bart_base:
   model_name: facebook/bart-base
-  gpus: [0]
+  gpus: 1
   batch_size: 16
   max_epochs: 6
   lr: 0.000025
@@ -181,7 +181,7 @@ bart_base:
 
 bart_large:
   model_name: facebook/bart-large
-  gpus: [1]
+  gpus: 1
   batch_size: 12
   max_epochs: 6
   lr: 0.000025
@@ -193,7 +193,7 @@ bart_large:
 
 st_labse:
   model_name: sentence-transformers/LaBSE
-  gpus: [1]
+  gpus: 1
   batch_size: 16
   max_epochs: 6
   lr: 0.000025
@@ -206,7 +206,7 @@ st_labse:
 # https://www.sbert.net/docs/pretrained_models.html
 st_paraphrase:
   model_name: sentence-transformers/paraphrase-mpnet-base-v2
-  gpus: [1]
+  gpus: 1
   batch_size: 32
   max_epochs: 6
   lr: 0.00005
@@ -218,7 +218,7 @@ st_paraphrase:
 
 sentence_bert:
   model_name: deepset/sentence_bert
-  gpus: [1]
+  gpus: 1
   batch_size: 16
   max_epochs: 6
   lr: 0.000025
@@ -230,7 +230,7 @@ sentence_bert:
 
 gpt2:
   model_name: gpt2
-  gpus: [1]
+  gpus: 1
   batch_size: 16
   max_epochs: 6
   lr: 0.00005
@@ -242,7 +242,7 @@ gpt2:
 
 electra:
   model_name: google/electra-large-discriminator
-  gpus: [0]
+  gpus: 1
   batch_size: 16
   max_epochs: 6
   lr: 0.00001
@@ -255,7 +255,7 @@ electra:
 
 convbert:
   model_name: YituTech/conv-bert-base
-  gpus: [1]
+  gpus: 1
   batch_size: 16
   max_epochs: 6
   lr: 0.00005
@@ -267,7 +267,7 @@ convbert:
 
 ctrl:
   model_name: ctrl  # 6.5GB!!
-  gpus: [1]
+  gpus: 1
   batch_size: 16
   max_epochs: 6
   lr: 0.00005

@@ -12,7 +12,7 @@ do
         echo "Starting" $timestamp "fold $i"
         python train.py --config $config --timestamp $timestamp --fold $i --seed $seed --slug $slug
     done
-    python agg_scores.py
+    # python agg_scores.py
     python infer.py --timestamp $timestamp --seed $seed --gpu $gpu
     # python upload_data.py --timestamp $timestamp
 done
