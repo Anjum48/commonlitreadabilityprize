@@ -14,7 +14,7 @@ python train.py --config <config_name>
 To run a 5-fold cross validation, using 5 different seeds, use the shell script `train.sh`. This script will also run `infer.py` and 
 generate out-of-fold (OOF) predictions for stacking models.
 ```
-sh train.sh -config <config_name>
+sh train.sh <config_name>
 ```
 
 # Inference
