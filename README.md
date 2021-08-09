@@ -1,6 +1,8 @@
 # CommonLit Readability Prize
 4th place solution code for the CommonLit Readability prize hosted on Kaggle (August 2021) https://www.kaggle.com/c/commonlitreadabilityprize
 
+The writeup can be found here: https://www.kaggle.com/c/commonlitreadabilityprize/discussion/258148
+
 # Setup
 Edit `src/config.py` to reflect the input and output locations on your machine
 

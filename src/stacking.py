@@ -185,15 +185,15 @@ def pruning(oofs, scorer=scorer_lstsq, candidates=model_folders):
 
     history = pd.DataFrame(history)
     # history.to_csv("pruning_bayesian.csv", index=False)
-    # history.to_csv("pruning_ridgecv.csv", index=False)
+    history.to_csv("pruning_ridgecv.csv", index=False)
     # history.to_csv("pruning_lstsq.csv", index=False)
-    history.to_csv("pruning_elastic.csv", index=False)
+    # history.to_csv("pruning_elastic.csv", index=False)
     print(history.tail(40))
 
 
 if __name__ == "__main__":
     oofs = build_oof_df(model_folders)
     # pruning(oofs, scorer_bayesian_ridge, model_folders)
-    # pruning(oofs, scorer_ridge, model_folders)
+    pruning(oofs, scorer_ridge, model_folders)
     # pruning(oofs, scorer_lstsq, model_folders)
-    pruning(oofs, scorer_elastic, model_folders)
+    # pruning(oofs, scorer_elastic, model_folders)
