@@ -139,6 +139,7 @@ idea/
 *.joblib.gz
 *.pt
 *.txt
+!requirements.txt
 *.zip
 *.mp4
 *.dat

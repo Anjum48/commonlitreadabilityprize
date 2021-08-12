@@ -1,0 +1,14 @@
+torch==1.8.0
+numpy==1.19.2
+tqdm==4.49.0
+transformers==4.8.2
+textstat==0.7.1
+pytorch_lightning==1.4.1
+gspread_dataframe==3.2.1
+gspread==3.7.0
+pandas==1.2.3
+wandb==0.11.2
+coolname==1.1.0
+accelerate==0.3.0
+PyYAML==5.4.1
+scikit_learn==0.24.2
